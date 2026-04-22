@@ -10,3 +10,4 @@ build/
 .mypy_cache/
 .pytest_cache/
 nginx/certs/
+.ruff_cache/

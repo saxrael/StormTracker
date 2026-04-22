@@ -33,6 +33,20 @@ def reasoning_core(state: AgentState) -> dict:
     response = llm_with_tools.invoke(
         [SystemMessage(content=system_prompt)] + list(state["messages"])
     )
+
+    thinking = (
+        response.additional_kwargs.get("thinking")
+        or response.response_metadata.get("thinking")
+        or response.additional_kwargs.get("reasoning_details")
+        or response.response_metadata.get("reasoning_details")
+        or response.additional_kwargs.get("thoughts")
+        or response.response_metadata.get("thoughts")
+    )
+
+    if thinking:
+        content = response.content if response.content else ""
+        response.content = f"<thought>\n{thinking}\n</thought>\n\n{content}"
+
     return {"messages": [response]}
 
 

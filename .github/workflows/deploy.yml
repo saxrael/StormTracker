@@ -1,0 +1,56 @@
+name: Deploy StormTracker
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ruff
+        run: pip install ruff==0.8.6
+
+      - name: Run Ruff linter
+        run: ruff check .
+
+      - name: Check Ruff formatting
+        run: ruff format --check .
+
+  deploy:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /opt/stormtracker
+            git pull origin main
+            cat <<EOF > /opt/stormtracker/.env
+            TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+            TELEGRAM_SECRET_TOKEN=${{ secrets.TELEGRAM_SECRET_TOKEN }}
+            WEBHOOK_URL=${{ secrets.WEBHOOK_URL }}
+            GOOGLE_AI_API_KEY=${{ secrets.GOOGLE_AI_API_KEY }}
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
+            DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}
+            CRON_SECRET=${{ secrets.CRON_SECRET }}
+            LANGFUSE_SECRET_KEY=${{ secrets.LANGFUSE_SECRET_KEY }}
+            LANGFUSE_PUBLIC_KEY=${{ secrets.LANGFUSE_PUBLIC_KEY }}
+            LANGFUSE_HOST=${{ secrets.LANGFUSE_HOST }}
+            EOF
+            docker compose -f docker-compose.prod.yml up -d --build

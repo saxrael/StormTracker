@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -37,7 +37,7 @@ async def check_metadata_duplicate(
     if not user_submission_ids:
         return False
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff = datetime.now(UTC) - timedelta(hours=24)
 
     stmt = (
         select(Metric.id)

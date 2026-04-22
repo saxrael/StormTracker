@@ -8,6 +8,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
     TELEGRAM_SECRET_TOKEN: str
@@ -23,6 +24,9 @@ class Settings(BaseSettings):
     LANGFUSE_PUBLIC_KEY: str
     LANGFUSE_SECRET_KEY: str
     LANGFUSE_HOST: str
+
+    CRON_SECRET: str
+    ADMIN_CHAT_ID: int
 
     RATE_LIMIT_REQUESTS: int = 20
     IMAGE_SIMILARITY_THRESHOLD: float = 0.99
