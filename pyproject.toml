@@ -1,0 +1,54 @@
+[project]
+name = "stormtracker"
+version = "0.1.0"
+description = "Multimodal ear-training assignment grader via Telegram Webhooks"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.1",
+    "httpx==0.28.1",
+
+    "sqlalchemy[asyncio]==2.0.36",
+    "asyncpg==0.30.0",
+    "alembic==1.14.1",
+    "pgvector==0.3.6",
+
+    "langgraph==0.2.60",
+    "langchain-core==0.3.28",
+    "langchain-google-genai==2.0.7",
+    "langchain-openai==0.2.14",
+
+    "langfuse==2.57.3",
+    "redis==5.2.1",
+
+    "python-multipart==0.0.20",
+    "argon2-cffi==23.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff==0.8.6",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "UP",
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
