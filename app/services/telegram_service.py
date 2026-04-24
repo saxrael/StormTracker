@@ -1,9 +1,27 @@
 import base64
+import html
+import re
 
 import httpx
 from fastapi import HTTPException
 
 from app.config import get_settings
+
+
+def _markdown_to_html(text: str) -> str:
+    if not text:
+        return ""
+
+    text = html.escape(text)
+
+    text = re.sub(r"```(.*?)```", r"<pre>\1</pre>", text, flags=re.DOTALL)
+    text = re.sub(r"`(.*?)`", r"<code>\1</code>", text)
+    text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
+    text = re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
+    text = re.sub(r"~~(.*?)~~", r"<s>\1</s>", text)
+    text = re.sub(r"\[(.*?)\]\((.*?)\)", r'<a href="\2">\1</a>', text)
+
+    return text
 
 
 class TelegramService:
@@ -17,9 +35,15 @@ class TelegramService:
         )
 
     async def send_message(self, chat_id: int, text: str) -> None:
+        safe_html = _markdown_to_html(text)
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/sendMessage", json={"chat_id": chat_id, "text": text}
+                f"{self.base_url}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": safe_html,
+                    "parse_mode": "HTML",
+                },
             )
             response.raise_for_status()
 
@@ -43,11 +67,16 @@ class TelegramService:
             return base64.b64encode(response.content).decode("utf-8")
 
     async def send_document(self, chat_id: int, document_path: str, caption: str = ""):
+        safe_caption = _markdown_to_html(caption)
         async with httpx.AsyncClient() as client:
             with open(document_path, "rb") as file_obj:
                 response = await client.post(
                     f"{self.base_url}/sendDocument",
-                    data={"chat_id": chat_id, "caption": caption},
+                    data={
+                        "chat_id": chat_id,
+                        "caption": safe_caption,
+                        "parse_mode": "HTML",
+                    },
                     files={"document": file_obj},
                 )
                 response.raise_for_status()
