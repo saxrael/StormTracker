@@ -15,11 +15,11 @@ dependencies = [
     "alembic==1.14.1",
     "pgvector==0.3.6",
 
-    "langgraph==0.2.60",
-    "langchain-core==0.3.28",
-    "langchain-google-genai>=3.0.0",
-    "google-genai>=0.1.0",
-    "langchain-openai==0.2.14",
+    "langgraph>=1.1.0",
+    "langchain-core>=1.3.0",
+    "langchain-google-genai>=4.0.0",
+    "google-genai>=1.0.0",
+    "langchain-openai>=1.1.0",
 
     "langfuse==2.57.3",
     "redis==5.2.1",
