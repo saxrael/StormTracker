@@ -91,7 +91,6 @@ def reasoning_core(state: AgentState) -> dict:
         safe_content = f"<thought>\n{thinking}\n</thought>\n\n" + safe_content
         response.content = safe_content
 
-
     return {"messages": [response]}
 
 
