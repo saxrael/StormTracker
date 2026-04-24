@@ -305,7 +305,7 @@ stormtracker_app = builder.compile()
 async def execute_graph(
     state: AgentState, session_id: str, raw_user_text: str = ""
 ) -> dict:
-    from langfuse.langchain import CallbackHandler
+    from langfuse.callback import CallbackHandler
 
     settings = get_settings()
     langfuse_handler = CallbackHandler(
