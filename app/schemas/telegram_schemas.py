@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -35,6 +34,7 @@ class Message(BaseModel):
     chat: Chat
     from_: User = Field(alias="from")
     text: str | None = None
+    caption: str | None = None
     photo: list[PhotoSize] | None = None
 
 

@@ -1,68 +1,100 @@
 import logging
-from datetime import UTC, datetime, timedelta
+import os
+from datetime import datetime
 
+import pytz
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
-from sqlalchemy import select
 
 from app.config import get_settings
-from app.models.models import Submission, User
 from app.services.database import async_session
+from app.services.pdf_service import generate_pdf_report
+from app.services.report_service import (
+    get_admin_ids,
+    get_daily_submissions,
+    get_defaulters,
+)
 from app.services.telegram_service import telegram_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
-async def _generate_daily_report() -> None:
-    settings = get_settings()
-    cutoff = datetime.now(UTC) - timedelta(hours=24)
-
-    async with async_session() as session:
-        result = await session.execute(
-            select(Submission)
-            .where(Submission.created_at >= cutoff)
-            .order_by(Submission.created_at.desc())
-        )
-        submissions = result.scalars().all()
-
-        all_users_result = await session.execute(select(User))
-        all_users = all_users_result.scalars().all()
-
-    active_user_ids = {s.user_id for s in submissions}
-    missing_users = [
-        u for u in all_users if u.id not in active_user_ids
-    ]
-
-    lines = [
-        f"📊 Daily Report — {datetime.now(UTC).strftime('%Y-%m-%d')}",
-        f"Submissions (24h): {len(submissions)}",
-        f"Active users: {len(active_user_ids)}",
-        f"Missing users: {len(missing_users)}",
-    ]
-
-    if missing_users:
-        lines.append("\nMissing:")
-        for user in missing_users:
-            label = user.username or str(user.telegram_id)
-            lines.append(f"  • {label}")
-
-    report_text = "\n".join(lines)
-
-    try:
-        await telegram_service.send_message(settings.ADMIN_CHAT_ID, report_text)
-    except Exception:
-        logger.exception("Failed to dispatch daily report")
+LAGOS_TZ = pytz.timezone("Africa/Lagos")
 
 
-@router.post("/cron/daily-report")
-async def daily_report(
-    background_tasks: BackgroundTasks,
-    x_cron_secret: str = Header(...),
-) -> dict:
+def _verify_cron_secret(x_cron_secret: str) -> None:
     settings = get_settings()
     if x_cron_secret != settings.CRON_SECRET:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    background_tasks.add_task(_generate_daily_report)
-    return {"status": "report_initiated"}
+
+async def _nudge_defaulters(message: str) -> None:
+    target_date = datetime.now(LAGOS_TZ).date()
+
+    async with async_session() as session:
+        defaulters = await get_defaulters(session, target_date)
+
+    for user in defaulters:
+        try:
+            await telegram_service.send_message(user["telegram_id"], message)
+        except Exception:
+            logger.exception("Failed to nudge user %s", user["telegram_id"])
+
+
+async def _broadcast_midnight_report() -> None:
+    target_date = datetime.now(LAGOS_TZ).date()
+
+    async with async_session() as session:
+        submissions = await get_daily_submissions(session, target_date)
+        defaulters = await get_defaulters(session, target_date)
+        admin_ids = await get_admin_ids(session)
+
+    pdf_path = generate_pdf_report(submissions, defaulters, target_date)
+
+    for admin_id in admin_ids:
+        try:
+            await telegram_service.send_document(
+                admin_id, pdf_path, caption="📊 StormTracker Daily Analytics"
+            )
+        except Exception:
+            logger.exception("Failed to send report to admin %s", admin_id)
+
+    os.remove(pdf_path)
+
+
+@router.post("/cron/nudge-morning")
+async def nudge_morning(
+    background_tasks: BackgroundTasks,
+    x_cron_secret: str = Header(...),
+) -> dict:
+    _verify_cron_secret(x_cron_secret)
+    background_tasks.add_task(
+        _nudge_defaulters,
+        "☀️ Good morning! Friendly reminder to submit your "
+        "ear-training assignment for today.",
+    )
+    return {"status": "ok"}
+
+
+@router.post("/cron/nudge-evening")
+async def nudge_evening(
+    background_tasks: BackgroundTasks,
+    x_cron_secret: str = Header(...),
+) -> dict:
+    _verify_cron_secret(x_cron_secret)
+    background_tasks.add_task(
+        _nudge_defaulters,
+        "🌙 Evening reminder! You haven't submitted today's "
+        "ear-training yet. Please submit before midnight!",
+    )
+    return {"status": "ok"}
+
+
+@router.post("/cron/midnight-report")
+async def midnight_report(
+    background_tasks: BackgroundTasks,
+    x_cron_secret: str = Header(...),
+) -> dict:
+    _verify_cron_secret(x_cron_secret)
+    background_tasks.add_task(_broadcast_midnight_report)
+    return {"status": "ok"}

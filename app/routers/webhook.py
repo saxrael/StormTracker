@@ -4,11 +4,15 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from langchain_core.messages import HumanMessage
 
 from app.agents.graph import execute_graph
+from app.agents.llm_setup import get_text_embedding
 from app.config import get_settings
 from app.schemas.telegram_schemas import TelegramUpdate
-from app.services.memory_service import check_rate_limit
+from app.services import cognitive_service, conversation_service, profile_service
+from app.services.database import async_session as async_session_maker
+from app.services.database import redis_client
 from app.services.telegram_service import telegram_service
 from app.state.state import AgentState
+from app.utils.security import check_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +36,15 @@ async def telegram_webhook(
         return {"status": "ok"}
 
     chat_id = update.message.chat.id
-    user_id = update.message.from_.id
+    telegram_id = update.message.from_.id
     username = update.message.from_.username
 
     if not await check_rate_limit(chat_id):
         return {"status": "rate_limited"}
 
-    image_base64 = None
-    text_content = update.message.text or ""
+    user_text = update.message.text or update.message.caption or "Uploaded an image."
 
+    image_base64 = None
     if update.message.photo:
         photo = update.message.photo[-1]
         try:
@@ -50,31 +54,63 @@ async def telegram_webhook(
             logger.exception("Image download failed for chat_id=%d", chat_id)
             return {"status": "ok"}
 
-    messages = []
-    if text_content:
-        messages.append(HumanMessage(content=text_content))
-    elif image_base64:
-        messages.append(HumanMessage(content="[Image submitted for grading]"))
+    async with async_session_maker() as session:
+        profile = await profile_service.get_or_create_profile(
+            session, telegram_id, username
+        )
+        db_user_id = profile["user_id"]
+        role = profile["role"]
+        is_onboarded = profile["is_onboarded"]
+        full_name = profile["full_name"]
 
-    if not messages:
-        return {"status": "ok"}
+    history = await conversation_service.get_history(
+        telegram_id, async_session_maker, redis_client
+    )
+    summary = await cognitive_service.get_summary(telegram_id, redis_client)
+
+    facts = []
+    if len(user_text.split()) >= 4 or image_base64:
+        query_emb = await get_text_embedding(user_text)
+        async with async_session_maker() as session:
+            facts = await cognitive_service.retrieve_relevant_facts(
+                session, db_user_id, query_emb
+            )
+
+    msg_content = [{"type": "text", "text": user_text}]
+    if image_base64:
+        msg_content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+            }
+        )
+    human_msg = HumanMessage(content=msg_content)
+    history.append(human_msg)
 
     agent_state: AgentState = {
-        "messages": messages,
+        "messages": history,
         "chat_id": chat_id,
-        "user_id": user_id,
+        "user_id": telegram_id,
         "username": username,
-        "role": "member",
+        "role": role,
+        "db_user_id": str(db_user_id),
         "image_base64": image_base64,
         "extracted_metrics": None,
         "image_vector": None,
+        "full_name": full_name,
+        "is_onboarded": is_onboarded,
+        "conversation_summary": summary,
+        "relevant_facts": facts,
         "task_status": "pending",
         "retry_count": 0,
         "critique": None,
     }
 
     background_tasks.add_task(
-        execute_graph, state=agent_state, session_id=str(chat_id)
+        execute_graph,
+        state=agent_state,
+        session_id=str(telegram_id),
+        raw_user_text=user_text,
     )
 
     return {"status": "ok"}

@@ -11,3 +11,4 @@ docker-compose.yml
 nginx/
 .dockerignore
 Dockerfile
+.ruff_cache

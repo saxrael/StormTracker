@@ -26,10 +26,11 @@ class Settings(BaseSettings):
     LANGFUSE_HOST: str
 
     CRON_SECRET: str
-    ADMIN_CHAT_ID: int
+    ROOT_CLAIM_TOKEN: str | None = None
 
     RATE_LIMIT_REQUESTS: int = 20
     IMAGE_SIMILARITY_THRESHOLD: float = 0.99
+    DEBUG: bool = False
 
 
 @lru_cache

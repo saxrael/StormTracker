@@ -52,5 +52,9 @@ jobs:
             LANGFUSE_SECRET_KEY=${{ secrets.LANGFUSE_SECRET_KEY }}
             LANGFUSE_PUBLIC_KEY=${{ secrets.LANGFUSE_PUBLIC_KEY }}
             LANGFUSE_HOST=${{ secrets.LANGFUSE_HOST }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            ROOT_CLAIM_TOKEN=${{ secrets.ROOT_CLAIM_TOKEN }}
             EOF
             docker compose -f docker-compose.prod.yml up -d --build

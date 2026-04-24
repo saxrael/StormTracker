@@ -10,9 +10,14 @@ class AgentState(TypedDict):
     user_id: int
     username: str | None
     role: str
+    db_user_id: str
     image_base64: str | None
     extracted_metrics: dict | None
     image_vector: list[float] | None
+    full_name: str | None
+    is_onboarded: bool
     task_status: str
     retry_count: int
     critique: str | None
+    conversation_summary: str | None
+    relevant_facts: list[str]

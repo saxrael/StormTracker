@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,9 +8,13 @@ from app.models.models import Metric, Submission
 
 async def check_visual_duplicate(
     session: AsyncSession,
-    user_submission_ids: list[UUID],
+    db_user_id: str,
     new_vector: list[float],
 ) -> float:
+    sub_ids_stmt = select(Submission.id).where(Submission.user_id == db_user_id)
+    sub_ids_result = await session.execute(sub_ids_stmt)
+    user_submission_ids = [row[0] for row in sub_ids_result.all()]
+
     if not user_submission_ids:
         return 0.0
 
@@ -31,9 +34,13 @@ async def check_visual_duplicate(
 
 async def check_metadata_duplicate(
     session: AsyncSession,
-    user_submission_ids: list[UUID],
+    db_user_id: str,
     new_metadata: str,
 ) -> bool:
+    sub_ids_stmt = select(Submission.id).where(Submission.user_id == db_user_id)
+    sub_ids_result = await session.execute(sub_ids_stmt)
+    user_submission_ids = [row[0] for row in sub_ids_result.all()]
+
     if not user_submission_ids:
         return False
 
