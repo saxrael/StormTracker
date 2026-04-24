@@ -37,8 +37,13 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            if [ ! -d "/home/ubuntu/stormtracker/.git" ]; then
+              rm -rf /home/ubuntu/stormtracker
+              git clone https://github.com/saxrael/StormTracker.git /home/ubuntu/stormtracker
+            fi
             cd /home/ubuntu/stormtracker
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             cat <<EOF > /home/ubuntu/stormtracker/.env
             TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
             TELEGRAM_SECRET_TOKEN=${{ secrets.TELEGRAM_SECRET_TOKEN }}
