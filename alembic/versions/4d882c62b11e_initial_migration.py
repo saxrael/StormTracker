@@ -1,20 +1,21 @@
 """Initial migration
 
 Revision ID: 4d882c62b11e
-Revises: 
+Revises: None
 Create Date: 2026-04-24 02:06:58.617113
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
+import pgvector
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-import pgvector
+
+from alembic import op
 
 revision: str = '4d882c62b11e'
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -22,14 +23,24 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.create_table('reports',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('generated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column(
+        'generated_at',
+        sa.DateTime(timezone=True),
+        server_default=sa.text('now()'),
+        nullable=False,
+    ),
     sa.Column('report_text', sa.Text(), nullable=False),
     sa.Column('missing_users', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('token_metrology',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column(
+        'timestamp',
+        sa.DateTime(timezone=True),
+        server_default=sa.text('now()'),
+        nullable=False,
+    ),
     sa.Column('model_name', sa.String(length=100), nullable=False),
     sa.Column('input_tokens', sa.Integer(), nullable=False),
     sa.Column('output_tokens', sa.Integer(), nullable=False),
@@ -41,7 +52,12 @@ def upgrade() -> None:
     sa.Column('username', sa.String(length=255), nullable=True),
     sa.Column('full_name', sa.String(length=255), nullable=True),
     sa.Column('role', sa.String(length=50), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column(
+        'created_at',
+        sa.DateTime(timezone=True),
+        server_default=sa.text('now()'),
+        nullable=False,
+    ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_telegram_id'), 'users', ['telegram_id'], unique=True)
@@ -50,7 +66,12 @@ def upgrade() -> None:
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('role', sa.String(length=20), nullable=False),
     sa.Column('content', sa.Text(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column(
+        'created_at',
+        sa.DateTime(timezone=True),
+        server_default=sa.text('now()'),
+        nullable=False,
+    ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -58,7 +79,12 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('status', sa.String(length=50), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column(
+        'created_at',
+        sa.DateTime(timezone=True),
+        server_default=sa.text('now()'),
+        nullable=False,
+    ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -67,7 +93,12 @@ def upgrade() -> None:
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('fact_text', sa.Text(), nullable=False),
     sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=2048), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column(
+        'created_at',
+        sa.DateTime(timezone=True),
+        server_default=sa.text('now()'),
+        nullable=False,
+    ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -78,9 +109,13 @@ def upgrade() -> None:
     sa.Column('total_questions', sa.Integer(), nullable=False),
     sa.Column('total_correct', sa.Integer(), nullable=False),
     sa.Column('overall_score_percentage', sa.Float(), nullable=False),
-    sa.Column('granular_details', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column(
+        'granular_details', postgresql.JSONB(astext_type=sa.Text()), nullable=False
+    ),
     sa.Column('device_metadata', sa.String(length=255), nullable=True),
-    sa.Column('image_vector', pgvector.sqlalchemy.vector.VECTOR(dim=2048), nullable=True),
+    sa.Column(
+        'image_vector', pgvector.sqlalchemy.vector.VECTOR(dim=2048), nullable=True
+    ),
     sa.ForeignKeyConstraint(['submission_id'], ['submissions.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
