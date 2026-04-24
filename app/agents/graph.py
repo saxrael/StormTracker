@@ -305,17 +305,15 @@ stormtracker_app = builder.compile()
 async def execute_graph(
     state: AgentState, session_id: str, raw_user_text: str = ""
 ) -> dict:
-    from langfuse.callback import CallbackHandler
+    from langfuse.langchain import CallbackHandler
 
-    settings = get_settings()
-    langfuse_handler = CallbackHandler(
-        session_id=session_id,
-        public_key=settings.LANGFUSE_PUBLIC_KEY,
-        secret_key=settings.LANGFUSE_SECRET_KEY,
-        host=settings.LANGFUSE_HOST,
-    )
+    langfuse_handler = CallbackHandler()
     result_state = await stormtracker_app.ainvoke(
-        state, config={"callbacks": [langfuse_handler]}
+        state,
+        config={
+            "callbacks": [langfuse_handler],
+            "metadata": {"langfuse_session_id": session_id},
+        },
     )
 
     final_message = result_state["messages"][-1].content
