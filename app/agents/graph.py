@@ -25,6 +25,23 @@ from app.state.state import AgentState
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_content(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        texts = []
+        for block in content:
+            if isinstance(block, str):
+                texts.append(block)
+            elif isinstance(block, dict) and "text" in block:
+                texts.append(block["text"])
+        return " ".join(texts)
+    if content is None:
+        return ""
+    return str(content)
+
+
 _TOOL_REGISTRY = {
     "query_analytics": query_analytics,
     "authenticate_user": authenticate_user,
@@ -70,8 +87,10 @@ def reasoning_core(state: AgentState) -> dict:
     )
 
     if thinking:
-        content = response.content if response.content else ""
-        response.content = f"<thought>\n{thinking}\n</thought>\n\n{content}"
+        safe_content = _normalize_content(response.content)
+        safe_content = f"<thought>\n{thinking}\n</thought>\n\n" + safe_content
+        response.content = safe_content
+
 
     return {"messages": [response]}
 
@@ -316,7 +335,7 @@ async def execute_graph(
         },
     )
 
-    final_message = result_state["messages"][-1].content
+    final_message = _normalize_content(result_state["messages"][-1].content)
     clean_message = re.sub(
         r"<thought>.*?</thought>", "", final_message, flags=re.DOTALL
     ).strip()
