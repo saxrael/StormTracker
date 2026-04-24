@@ -69,7 +69,7 @@ async def telegram_webhook(
     summary = await cognitive_service.get_summary(telegram_id, redis_client)
 
     facts = []
-    if len(user_text.split()) >= 4 or image_base64:
+    if len(user_text.split()) >= 4:
         query_emb = await get_text_embedding(user_text)
         async with async_session_maker() as session:
             facts = await cognitive_service.retrieve_relevant_facts(

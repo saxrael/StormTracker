@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import traceback
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, StateGraph
@@ -323,29 +324,43 @@ stormtracker_app = builder.compile()
 async def execute_graph(
     state: AgentState, session_id: str, raw_user_text: str = ""
 ) -> dict:
-    from langfuse.langchain import CallbackHandler
+    try:
+        from langfuse.langchain import CallbackHandler
 
-    langfuse_handler = CallbackHandler()
-    result_state = await stormtracker_app.ainvoke(
-        state,
-        config={
-            "callbacks": [langfuse_handler],
-            "metadata": {"langfuse_session_id": session_id},
-        },
-    )
+        langfuse_handler = CallbackHandler()
+        result_state = await stormtracker_app.ainvoke(
+            state,
+            config={
+                "callbacks": [langfuse_handler],
+                "metadata": {"langfuse_session_id": session_id},
+            },
+        )
 
-    final_message = _normalize_content(result_state["messages"][-1].content)
-    clean_message = re.sub(
-        r"<thought>.*?</thought>", "", final_message, flags=re.DOTALL
-    ).strip()
-    if not clean_message:
-        clean_message = "Processed successfully."
+        final_message = _normalize_content(result_state["messages"][-1].content)
+        clean_message = re.sub(
+            r"<thought>.*?</thought>", "", final_message, flags=re.DOTALL
+        ).strip()
+        if not clean_message:
+            clean_message = "Processed successfully."
 
-    telegram_client = TelegramService()
-    await telegram_client.send_message(chat_id=int(session_id), text=clean_message)
+        telegram_client = TelegramService()
+        await telegram_client.send_message(chat_id=int(session_id), text=clean_message)
 
-    await conversation_service.persist_turn(
-        int(session_id), raw_user_text, clean_message, async_session, redis_client
-    )
+        await conversation_service.persist_turn(
+            int(session_id), raw_user_text, clean_message, async_session, redis_client
+        )
 
-    return result_state
+        return result_state
+    except Exception:
+        traceback.print_exc()
+        try:
+            from app.services.telegram_service import TelegramService
+
+            telegram_client = TelegramService()
+            await telegram_client.send_message(
+                chat_id=int(session_id),
+                text="Sorry I couldn't process your request. Please try again.",
+            )
+        except Exception as fallback_e:
+            print(f"CRITICAL: Failed to send fallback message: {fallback_e}")
+        return state
