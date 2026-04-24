@@ -1,7 +1,7 @@
 from functools import lru_cache
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from openai import AsyncOpenAI
+from langfuse.openai import AsyncOpenAI
 
 from app.config import get_settings
 

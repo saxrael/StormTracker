@@ -1,5 +1,6 @@
 import logging
 
+from langfuse import observe
 from sqlalchemy import select
 
 from app.agents.llm_setup import _get_openrouter_client, get_text_embedding
@@ -7,7 +8,7 @@ from app.models.models import User, UserMemoryFact
 
 logger = logging.getLogger(__name__)
 
-SUMMARY_MODEL = "google/gemma-4-31b-it"
+SUMMARY_MODEL = "google/gemma-4-31b-it:free"
 
 
 async def get_summary(telegram_id: int, redis_client) -> str | None:
@@ -30,6 +31,7 @@ async def retrieve_relevant_facts(
     return [row[0] for row in result.all()]
 
 
+@observe(name="Cognitive Memory Processing")
 async def process_cognitive_memory(
     telegram_id: int,
     evicted_messages: list[str],
@@ -56,6 +58,7 @@ async def process_cognitive_memory(
                     ),
                 }
             ],
+            extra_body={"reasoning": {"enabled": True}},
         )
         new_summary = summary_response.choices[0].message.content
         await redis_client.set(f"chat:summary:{telegram_id}", new_summary, ex=172800)
@@ -73,6 +76,7 @@ async def process_cognitive_memory(
                     ),
                 }
             ],
+            extra_body={"reasoning": {"enabled": True}},
         )
         extracted_facts = facts_response.choices[0].message.content.strip()
 
