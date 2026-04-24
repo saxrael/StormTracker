@@ -12,3 +12,14 @@ build/
 .ruff_cache/
 .cache/
 .config/
+*.pem
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.pdf
+*.png
+*.jpg
+pgdata/
+redisdata/

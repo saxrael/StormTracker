@@ -37,9 +37,9 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /opt/stormtracker
+            cd /home/ubuntu/stormtracker
             git pull origin main
-            cat <<EOF > /opt/stormtracker/.env
+            cat <<EOF > /home/ubuntu/stormtracker/.env
             TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
             TELEGRAM_SECRET_TOKEN=${{ secrets.TELEGRAM_SECRET_TOKEN }}
             WEBHOOK_URL=${{ secrets.WEBHOOK_URL }}
@@ -56,5 +56,7 @@ jobs:
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             POSTGRES_DB=${{ secrets.POSTGRES_DB }}
             ROOT_CLAIM_TOKEN=${{ secrets.ROOT_CLAIM_TOKEN }}
+            RATE_LIMIT_REQUESTS=${{ secrets.RATE_LIMIT_REQUESTS }}
+            IMAGE_SIMILARITY_THRESHOLD=${{ secrets.IMAGE_SIMILARITY_THRESHOLD }}
             EOF
             docker compose -f docker-compose.prod.yml up -d --build
