@@ -354,8 +354,6 @@ async def execute_graph(
     except Exception:
         traceback.print_exc()
         try:
-            from app.services.telegram_service import TelegramService
-
             telegram_client = TelegramService()
             await telegram_client.send_message(
                 chat_id=int(session_id),

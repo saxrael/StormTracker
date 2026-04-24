@@ -29,13 +29,18 @@ async def get_image_embedding(base64_string: str) -> list[float]:
     client = _get_openrouter_client()
     response = await client.embeddings.create(
         model="nvidia/llama-nemotron-embed-vl-1b-v2:free",
-        input=[{
-            "content":[
-                {"type": "text", "text": "Analyze this image."},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_string}"}}
-            ]
-        }],
-        encoding_format="float"
+        input=[
+            {
+                "content": [
+                    {"type": "text", "text": "Analyze this image."},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{base64_string}"},
+                    },
+                ]
+            }
+        ],
+        encoding_format="float",
     )
     return response.data[0].embedding
 
@@ -45,6 +50,6 @@ async def get_text_embedding(text: str) -> list[float]:
     response = await client.embeddings.create(
         model="nvidia/llama-nemotron-embed-vl-1b-v2:free",
         input=text,
-        encoding_format="float"
+        encoding_format="float",
     )
     return response.data[0].embedding
