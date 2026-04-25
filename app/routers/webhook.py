@@ -35,24 +35,60 @@ async def telegram_webhook(
     if not update.message:
         return {"status": "ok"}
 
-    chat_id = update.message.chat.id
-    telegram_id = update.message.from_.id
-    username = update.message.from_.username
+    message = update.message
+    chat_id = message.chat.id
+    telegram_id = message.from_.id
+    username = message.from_.username
 
     if not await check_rate_limit(chat_id):
         return {"status": "rate_limited"}
 
-    user_text = update.message.text or update.message.caption or "Uploaded an image."
+    user_text = message.text or message.caption or "Uploaded an image."
 
     image_base64 = None
-    if update.message.photo:
-        photo = update.message.photo[-1]
+    file_id = None
+    file_size = 0
+    rejection_reason = None
+
+    if message.photo:
+        photo = message.photo[-1]
+        file_id = photo.file_id
+        file_size = photo.file_size or 0
+    elif message.document:
+        doc = message.document
+        if doc.mime_type and doc.mime_type.startswith("image/"):
+            file_id = doc.file_id
+            file_size = doc.file_size or 0
+        else:
+            rejection_reason = "non_image"
+
+    if file_id and file_size > 5_242_880:
+        file_id = None
+        rejection_reason = "too_large"
+
+    if rejection_reason == "non_image":
+        user_text += (
+            "\n\n[SYSTEM ALERT: The user uploaded a non-image document. "
+            "Explicitly inform them that you can only process "
+            "ear-training screenshots.]"
+        )
+    elif rejection_reason == "too_large":
+        user_text += (
+            "\n\n[SYSTEM ALERT: The user uploaded an image exceeding the "
+            "5MB limit. Explicitly ask them to compress it or send it "
+            "as a standard Telegram Photo.]"
+        )
+    elif file_id:
         try:
-            file_path = await telegram_service.get_file_path(photo.file_id)
+            file_path = await telegram_service.get_file_path(file_id)
             image_base64 = await telegram_service.download_image_as_base64(file_path)
         except Exception:
             logger.exception("Image download failed for chat_id=%d", chat_id)
-            return {"status": "ok"}
+            user_text += (
+                "\n\n[SYSTEM ALERT: Failed to download the image "
+                "from Telegram servers. Explicitly inform them to try "
+                "sending it again or compressing it.]"
+            )
 
     async with async_session_maker() as session:
         profile = await profile_service.get_or_create_profile(

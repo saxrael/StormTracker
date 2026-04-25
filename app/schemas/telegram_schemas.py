@@ -27,6 +27,15 @@ class Chat(BaseModel):
     first_name: str | None = None
 
 
+class Document(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    file_id: str
+    file_unique_id: str
+    file_size: int | None = None
+    mime_type: str | None = None
+
+
 class Message(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -36,6 +45,7 @@ class Message(BaseModel):
     text: str | None = None
     caption: str | None = None
     photo: list[PhotoSize] | None = None
+    document: Document | None = None
 
 
 class TelegramUpdate(BaseModel):

@@ -87,24 +87,27 @@ def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=LAGOS_TZ)
 
     scheduler.add_job(
-        lambda: asyncio.ensure_future(run_with_lock("morning", _task_morning_nudge)),
-        "cron",
+        run_with_lock,
+        trigger="cron",
         hour=9,
         minute=0,
+        args=["morning", _task_morning_nudge],
         id="morning_nudge",
     )
     scheduler.add_job(
-        lambda: asyncio.ensure_future(run_with_lock("evening", _task_evening_nudge)),
-        "cron",
+        run_with_lock,
+        trigger="cron",
         hour=20,
         minute=0,
+        args=["evening", _task_evening_nudge],
         id="evening_nudge",
     )
     scheduler.add_job(
-        lambda: asyncio.ensure_future(run_with_lock("midnight", _task_midnight_report)),
-        "cron",
+        run_with_lock,
+        trigger="cron",
         hour=23,
         minute=59,
+        args=["midnight", _task_midnight_report],
         id="midnight_report",
     )
 

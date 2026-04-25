@@ -2,13 +2,14 @@ import logging
 
 from langfuse import observe
 from sqlalchemy import select
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.agents.llm_setup import _get_openrouter_client, get_text_embedding
 from app.models.models import User, UserMemoryFact
 
 logger = logging.getLogger(__name__)
 
-SUMMARY_MODEL = "google/gemma-4-31b-it:free"
+SUMMARY_MODEL = "google/gemma-4-31b-it"
 
 
 async def get_summary(telegram_id: int, redis_client) -> str | None:
@@ -31,6 +32,19 @@ async def retrieve_relevant_facts(
     return [row[0] for row in result.all()]
 
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=30),
+    reraise=True,
+)
+async def _llm_call(client, model, messages):
+    return await client.chat.completions.create(
+        model=model,
+        messages=messages,
+        extra_body={"reasoning": {"enabled": True}},
+    )
+
+
 @observe(name="Cognitive Memory Processing")
 async def process_cognitive_memory(
     telegram_id: int,
@@ -45,9 +59,10 @@ async def process_cognitive_memory(
         existing_summary = await redis_client.get(f"chat:summary:{telegram_id}")
         old_summary = existing_summary or "No existing summary."
 
-        summary_response = await client.chat.completions.create(
-            model=SUMMARY_MODEL,
-            messages=[
+        summary_response = await _llm_call(
+            client,
+            SUMMARY_MODEL,
+            [
                 {
                     "role": "user",
                     "content": (
@@ -58,14 +73,14 @@ async def process_cognitive_memory(
                     ),
                 }
             ],
-            extra_body={"reasoning": {"enabled": True}},
         )
         new_summary = summary_response.choices[0].message.content
         await redis_client.set(f"chat:summary:{telegram_id}", new_summary, ex=172800)
 
-        facts_response = await client.chat.completions.create(
-            model=SUMMARY_MODEL,
-            messages=[
+        facts_response = await _llm_call(
+            client,
+            SUMMARY_MODEL,
+            [
                 {
                     "role": "user",
                     "content": (
@@ -76,7 +91,6 @@ async def process_cognitive_memory(
                     ),
                 }
             ],
-            extra_body={"reasoning": {"enabled": True}},
         )
         extracted_facts = facts_response.choices[0].message.content.strip()
 
