@@ -52,7 +52,7 @@ _TOOL_REGISTRY = {
 }
 
 
-def reasoning_core(state: AgentState) -> dict:
+async def reasoning_core(state: AgentState) -> dict:
     llm = get_gemma_llm()
     llm_with_tools = llm.bind_tools(
         [
@@ -74,7 +74,7 @@ def reasoning_core(state: AgentState) -> dict:
         retry_count=state["retry_count"],
         critique_block=state.get("critique"),
     )
-    response = llm_with_tools.invoke(
+    response = await llm_with_tools.ainvoke(
         [SystemMessage(content=system_prompt)] + list(state["messages"])
     )
 

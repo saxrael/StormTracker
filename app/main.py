@@ -8,6 +8,10 @@ from app.config import get_settings
 from app.routers import cron, webhook
 from app.scheduler import start_scheduler
 from app.services.database import engine
+from app.services.telegram_service import (
+    shutdown_telegram_client,
+    startup_telegram_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +39,13 @@ async def _register_telegram_webhook(client: httpx.AsyncClient) -> None:
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    startup_telegram_client()
     application.state.http_client = httpx.AsyncClient(timeout=30.0)
     await _register_telegram_webhook(application.state.http_client)
     start_scheduler()
     logger.info("Application startup complete")
     yield
+    await shutdown_telegram_client()
     await application.state.http_client.aclose()
     await engine.dispose()
     logger.info("Application shutdown complete")

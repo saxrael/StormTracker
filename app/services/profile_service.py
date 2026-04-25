@@ -1,4 +1,5 @@
-from sqlalchemy import select, update
+from sqlalchemy import update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import User
@@ -7,14 +8,18 @@ from app.models.models import User
 async def get_or_create_profile(
     session: AsyncSession, telegram_id: int, username: str | None
 ) -> dict:
-    result = await session.execute(select(User).where(User.telegram_id == telegram_id))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        user = User(telegram_id=telegram_id, username=username, role="member")
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
+    stmt = (
+        insert(User)
+        .values(telegram_id=telegram_id, username=username, role="member")
+        .on_conflict_do_update(
+            index_elements=["telegram_id"],
+            set_=dict(username=username),
+        )
+        .returning(User)
+    )
+    result = await session.execute(stmt)
+    user = result.scalar_one()
+    await session.commit()
 
     is_onboarded = bool(user.full_name)
 

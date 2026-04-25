@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import os
+from contextlib import suppress
 from datetime import datetime
 
 import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from app.services import conversation_service
 from app.services.database import async_session, redis_client
 from app.services.pdf_service import generate_pdf_report
 from app.services.report_service import (
@@ -18,6 +20,15 @@ from app.services.telegram_service import telegram_service
 logger = logging.getLogger(__name__)
 
 LAGOS_TZ = pytz.timezone("Africa/Lagos")
+
+MORNING_NUDGE_TEXT = (
+    "☀️ Good morning! Friendly reminder to submit your "
+    "ear-training assignment for today."
+)
+EVENING_NUDGE_TEXT = (
+    "🌙 Evening reminder! You haven't submitted today's "
+    "ear-training yet. Please submit before midnight!"
+)
 
 
 async def run_with_lock(task_name: str, task_coro):
@@ -39,8 +50,14 @@ async def _task_morning_nudge():
         try:
             await telegram_service.send_message(
                 user["telegram_id"],
-                "☀️ Good morning! Friendly reminder to submit your "
-                "ear-training assignment for today.",
+                MORNING_NUDGE_TEXT,
+            )
+            await conversation_service.persist_turn(
+                telegram_id=user["telegram_id"],
+                user_text=None,
+                ai_text=MORNING_NUDGE_TEXT,
+                session_factory=async_session,
+                redis_client=redis_client,
             )
         except Exception:
             logger.exception("Failed to nudge user %s", user["telegram_id"])
@@ -54,8 +71,14 @@ async def _task_evening_nudge():
         try:
             await telegram_service.send_message(
                 user["telegram_id"],
-                "🌙 Evening reminder! You haven't submitted today's "
-                "ear-training yet. Please submit before midnight!",
+                EVENING_NUDGE_TEXT,
+            )
+            await conversation_service.persist_turn(
+                telegram_id=user["telegram_id"],
+                user_text=None,
+                ai_text=EVENING_NUDGE_TEXT,
+                session_factory=async_session,
+                redis_client=redis_client,
             )
         except Exception:
             logger.exception("Failed to nudge user %s", user["telegram_id"])
@@ -80,7 +103,9 @@ async def _task_midnight_report():
         except Exception:
             logger.exception("Failed to send report to admin %s", admin_id)
 
-    os.remove(pdf_path)
+    with suppress(OSError):
+        if pdf_path and os.path.exists(pdf_path):
+            os.remove(pdf_path)
 
 
 def start_scheduler():

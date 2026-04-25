@@ -66,7 +66,7 @@ async def get_history(telegram_id: int, session_factory, redis_client) -> list:
 
 async def persist_turn(
     telegram_id: int,
-    user_text: str,
+    user_text: str | None,
     ai_text: str,
     session_factory,
     redis_client,
@@ -77,22 +77,27 @@ async def persist_turn(
         )
         user_id = result.scalar_one()
 
-        session.add(ChatMessage(user_id=user_id, role="human", content=user_text))
+        if user_text:
+            session.add(ChatMessage(user_id=user_id, role="human", content=user_text))
         session.add(ChatMessage(user_id=user_id, role="ai", content=ai_text))
         await session.commit()
 
     key = HISTORY_KEY_TEMPLATE.format(telegram_id)
-    user_entry = json.dumps({"role": "human", "content": user_text})
     ai_entry = json.dumps({"role": "ai", "content": ai_text})
 
-    await redis_client.rpush(key, user_entry, ai_entry)
+    if user_text:
+        user_entry = json.dumps({"role": "human", "content": user_text})
+        await redis_client.rpush(key, user_entry, ai_entry)
+    else:
+        await redis_client.rpush(key, ai_entry)
     await redis_client.expire(key, HISTORY_TTL)
 
+    num_added = 2 if user_text else 1
     llen = await redis_client.llen(key)
-    if llen > MAX_HISTORY_LENGTH:
-        overflow_count = llen - MAX_HISTORY_LENGTH
-        evicted_raw = await redis_client.lrange(key, 0, overflow_count - 1)
-        await redis_client.ltrim(key, -MAX_HISTORY_LENGTH, -1)
+    if llen + num_added > MAX_HISTORY_LENGTH:
+        evict_count = (llen + num_added) - MAX_HISTORY_LENGTH
+        evicted_raw = await redis_client.lrange(key, 0, evict_count - 1)
+        await redis_client.ltrim(key, evict_count, -1)
 
         evicted_msgs = [json.loads(m)["content"] for m in evicted_raw]
         asyncio.create_task(
