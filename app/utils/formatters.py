@@ -11,7 +11,7 @@ def generate_text_ledger(
         if isinstance(date_label, datetime.date)
         else str(date_label)
     )
-    lines = [f"StormTracker Daily Analytics - {display_date}", ""]
+    lines = [f"📊 **StormTracker Daily Analytics** — {display_date}", ""]
 
     lines.append("### Defaulters")
     if not defaulters:

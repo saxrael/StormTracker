@@ -154,8 +154,8 @@ def generate_pdf_report(
     os.remove(chart1_path)
     os.remove(chart2_path)
 
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_pdf:
-        pdf_path = tmp_pdf.name
+    filename = f"StormTracker_Report_{target_date.strftime('%Y-%m-%d')}.pdf"
+    pdf_path = os.path.join(tempfile.gettempdir(), filename)
 
     pdf.output(pdf_path)
 

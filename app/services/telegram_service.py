@@ -1,5 +1,6 @@
 import base64
 import html
+import os
 import re
 
 import httpx
@@ -27,6 +28,9 @@ def _markdown_to_html(text: str) -> str:
         return ""
 
     text = html.escape(text)
+
+    # Headings → bold (must come before ** handling)
+    text = re.sub(r"^#{1,3}\s+(.+)$", r"<b>\1</b>", text, flags=re.MULTILINE)
 
     text = re.sub(r"```(.*?)```", r"<pre>\1</pre>", text, flags=re.DOTALL)
     text = re.sub(r"`(.*?)`", r"<code>\1</code>", text)
@@ -88,7 +92,7 @@ class TelegramService:
                     "caption": safe_caption,
                     "parse_mode": "HTML",
                 },
-                files={"document": file_obj},
+                files={"document": (os.path.basename(document_path), file_obj)},
             )
             response.raise_for_status()
 
