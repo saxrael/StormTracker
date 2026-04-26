@@ -92,16 +92,23 @@ async def persist_turn(
         await redis_client.rpush(key, ai_entry)
     await redis_client.expire(key, HISTORY_TTL)
 
-    num_added = 2 if user_text else 1
     llen = await redis_client.llen(key)
-    if llen + num_added > MAX_HISTORY_LENGTH:
-        evict_count = (llen + num_added) - MAX_HISTORY_LENGTH
+    if llen > MAX_HISTORY_LENGTH:
+        evict_count = llen - MAX_HISTORY_LENGTH
         evicted_raw = await redis_client.lrange(key, 0, evict_count - 1)
         await redis_client.ltrim(key, evict_count, -1)
 
         evicted_msgs = [json.loads(m)["content"] for m in evicted_raw]
-        asyncio.create_task(
-            process_cognitive_memory(
-                telegram_id, evicted_msgs, session_factory, redis_client
+
+        overflow_key = f"chat:overflow:{telegram_id}"
+        await redis_client.rpush(overflow_key, *evicted_msgs)
+        overflow_len = await redis_client.llen(overflow_key)
+
+        if overflow_len >= 20:
+            batch = await redis_client.lrange(overflow_key, 0, -1)
+            await redis_client.delete(overflow_key)
+            asyncio.create_task(
+                process_cognitive_memory(
+                    telegram_id, batch, session_factory, redis_client
+                )
             )
-        )

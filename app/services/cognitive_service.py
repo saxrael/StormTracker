@@ -64,14 +64,23 @@ async def process_cognitive_memory(
             SUMMARY_MODEL,
             [
                 {
+                    "role": "system",
+                    "content": (
+                        "You are a background memory processor. Your job is to "
+                        "update an existing conversation summary with new messages. "
+                        "Keep the summary concise, chronological, and strictly "
+                        "under 200 words. Focus on the user's progress and intent."
+                    ),
+                },
+                {
                     "role": "user",
                     "content": (
-                        "You are an AI assistant. Update this summary with the "
-                        "following recent messages. Keep it under 200 words. "
-                        f"Old Summary: {old_summary}. "
-                        f"Recent Messages: {messages_block}"
+                        f"<old_summary>\n{old_summary}\n</old_summary>\n\n"
+                        f"<new_messages>\n{messages_block}\n</new_messages>\n\n"
+                        "Generate the updated summary directly with no "
+                        "introductory text."
                     ),
-                }
+                },
             ],
         )
         new_summary = summary_response.choices[0].message.content
@@ -82,14 +91,22 @@ async def process_cognitive_memory(
             SUMMARY_MODEL,
             [
                 {
+                    "role": "system",
+                    "content": (
+                        "You are an entity extraction engine. Extract ONLY "
+                        "permanent, high-value facts (e.g., user's real name, "
+                        "specific music goals, locations, explicit preferences). "
+                        "Ignore transient chatter."
+                    ),
+                },
+                {
                     "role": "user",
                     "content": (
-                        "Extract ONLY permanent, high-value facts "
-                        "(e.g., name, specific music goals, locations) from "
-                        f"these messages: {messages_block}. "
-                        "If no permanent facts exist, output exactly 'NONE'."
+                        f"<messages>\n{messages_block}\n</messages>\n\n"
+                        "If there are facts, output them as a simple bulleted list. "
+                        "If there are NO permanent facts, output the exact word: NONE"
                     ),
-                }
+                },
             ],
         )
         extracted_facts = facts_response.choices[0].message.content.strip()

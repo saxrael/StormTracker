@@ -6,6 +6,7 @@ import traceback
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, StateGraph
 from sqlalchemy.dialects.postgresql import insert
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.agents.llm_setup import get_gemma_llm, get_image_embedding
 from app.agents.prompts import get_formatted_system_prompt
@@ -318,7 +319,17 @@ builder.add_conditional_edges(
     {"reasoning_core": "reasoning_core", END: END},
 )
 
+
 stormtracker_app = builder.compile()
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=30),
+    reraise=True,
+)
+async def _invoke_graph_with_retry(app, state, config):
+    return await app.ainvoke(state, config=config)
 
 
 async def execute_graph(
@@ -328,7 +339,8 @@ async def execute_graph(
         from langfuse.langchain import CallbackHandler
 
         langfuse_handler = CallbackHandler()
-        result_state = await stormtracker_app.ainvoke(
+        result_state = await _invoke_graph_with_retry(
+            stormtracker_app,
             state,
             config={
                 "callbacks": [langfuse_handler],
@@ -351,13 +363,27 @@ async def execute_graph(
         )
 
         return result_state
-    except Exception:
+    except Exception as e:
         traceback.print_exc()
         try:
+            error_str = str(e)
+            error_msg = "Sorry I couldn't process your request. Please try again."
+
+            if "429" in error_str or "ResourceExhausted" in error_str:
+                error_msg = (
+                    "The system is currently experiencing a high volume of requests. "
+                    "Please wait a few moments before trying again."
+                )
+            elif "500" in error_str or "Internal Server Error" in error_str:
+                error_msg = (
+                    "We've encountered a temporary technical issue. "
+                    "Please try your request again later."
+                )
+
             telegram_client = TelegramService()
             await telegram_client.send_message(
                 chat_id=int(session_id),
-                text="Sorry I couldn't process your request. Please try again.",
+                text=error_msg,
             )
         except Exception as fallback_e:
             print(f"CRITICAL: Failed to send fallback message: {fallback_e}")

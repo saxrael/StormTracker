@@ -41,6 +41,13 @@ async def telegram_webhook(
     username = message.from_.username
 
     if not await check_rate_limit(chat_id):
+        await telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                "You have exceeded the allowed number of requests. "
+                "Please wait a moment before trying again."
+            ),
+        )
         return {"status": "rate_limited"}
 
     user_text = message.text or message.caption or "Uploaded an image."
