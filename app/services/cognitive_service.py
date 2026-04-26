@@ -68,7 +68,7 @@ async def process_cognitive_memory(
                         "You are a background memory processor. Your job is to "
                         "update an existing conversation summary with new messages. "
                         "Keep the summary concise, chronological, and strictly "
-                        "under 200 words. Focus on the current narrative and "
+                        "under 250 words. Focus on the current narrative and "
                         "momentum (what is happening NOW and current struggles). "
                         "Do NOT include permanent milestones or hard facts (like "
                         "dates or scores) that are better suited for long-term "

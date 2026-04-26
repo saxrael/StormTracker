@@ -44,6 +44,7 @@ jobs:
             cd /home/ubuntu/stormtracker
             git fetch origin main
             git reset --hard origin/main
+            git clean -fd
             cat <<EOF > /home/ubuntu/stormtracker/.env
             TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
             TELEGRAM_SECRET_TOKEN=${{ secrets.TELEGRAM_SECRET_TOKEN }}
