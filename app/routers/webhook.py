@@ -109,7 +109,7 @@ async def telegram_webhook(
     history = await conversation_service.get_history(
         telegram_id, async_session_maker, redis_client
     )
-    summary = await cognitive_service.get_summary(telegram_id, redis_client)
+    summary = profile.get("conversation_summary")
 
     facts = []
     if len(user_text.split()) >= 4:

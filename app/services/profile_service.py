@@ -29,6 +29,7 @@ async def get_or_create_profile(
         "role": user.role,
         "full_name": user.full_name,
         "is_onboarded": is_onboarded,
+        "conversation_summary": user.conversation_summary,
     }
 
 

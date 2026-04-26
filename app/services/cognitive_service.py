@@ -1,7 +1,7 @@
 import logging
 
 from langfuse import observe
-from sqlalchemy import select
+from sqlalchemy import select, update
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.agents.llm_setup import _get_openrouter_client, get_text_embedding
@@ -10,11 +10,6 @@ from app.models.models import User, UserMemoryFact
 logger = logging.getLogger(__name__)
 
 SUMMARY_MODEL = "google/gemma-4-31b-it"
-
-
-async def get_summary(telegram_id: int, redis_client) -> str | None:
-    value = await redis_client.get(f"chat:summary:{telegram_id}")
-    return value
 
 
 async def retrieve_relevant_facts(
@@ -37,10 +32,11 @@ async def retrieve_relevant_facts(
     wait=wait_exponential(multiplier=2, min=4, max=30),
     reraise=True,
 )
-async def _llm_call(client, model, messages):
+async def _llm_call(client, model, messages, temperature: float):
     return await client.chat.completions.create(
         model=model,
         messages=messages,
+        temperature=temperature,
         extra_body={"reasoning": {"enabled": True}},
     )
 
@@ -56,8 +52,11 @@ async def process_cognitive_memory(
         client = _get_openrouter_client()
         messages_block = "\n".join(evicted_messages)
 
-        existing_summary = await redis_client.get(f"chat:summary:{telegram_id}")
-        old_summary = existing_summary or "No existing summary."
+        async with session_factory() as session:
+            user = await session.scalar(
+                select(User).where(User.telegram_id == telegram_id)
+            )
+            old_summary = user.conversation_summary or "No existing summary."
 
         summary_response = await _llm_call(
             client,
@@ -69,7 +68,11 @@ async def process_cognitive_memory(
                         "You are a background memory processor. Your job is to "
                         "update an existing conversation summary with new messages. "
                         "Keep the summary concise, chronological, and strictly "
-                        "under 200 words. Focus on the user's progress and intent."
+                        "under 200 words. Focus on the current narrative and "
+                        "momentum (what is happening NOW and current struggles). "
+                        "Do NOT include permanent milestones or hard facts (like "
+                        "dates or scores) that are better suited for long-term "
+                        "memory; leave those for the fact extractor."
                     ),
                 },
                 {
@@ -82,9 +85,17 @@ async def process_cognitive_memory(
                     ),
                 },
             ],
+            temperature=0.2,
         )
         new_summary = summary_response.choices[0].message.content
-        await redis_client.set(f"chat:summary:{telegram_id}", new_summary, ex=172800)
+
+        async with session_factory() as session:
+            await session.execute(
+                update(User)
+                .where(User.telegram_id == telegram_id)
+                .values(conversation_summary=new_summary)
+            )
+            await session.commit()
 
         facts_response = await _llm_call(
             client,
@@ -93,21 +104,22 @@ async def process_cognitive_memory(
                 {
                     "role": "system",
                     "content": (
-                        "You are an entity extraction engine. Extract ONLY "
-                        "permanent, high-value facts (e.g., user's real name, "
-                        "specific music goals, locations, explicit preferences). "
-                        "Ignore transient chatter."
+                        "You are an entity extraction engine. Extract high-value "
+                        "milestones (achievements, course starts) AND qualitative "
+                        "mentorship insights (learning style, tone, recurring "
+                        "struggles, explicit preferences). Ignore transient chatter. "
+                        "If there are NO permanent facts, output the exact word: NONE"
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
                         f"<messages>\n{messages_block}\n</messages>\n\n"
-                        "If there are facts, output them as a simple bulleted list. "
-                        "If there are NO permanent facts, output the exact word: NONE"
+                        "Generate the extracted facts as a simple bulleted list."
                     ),
                 },
             ],
+            temperature=0.1,
         )
         extracted_facts = facts_response.choices[0].message.content.strip()
 

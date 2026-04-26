@@ -54,9 +54,9 @@ To support continuous context without amnesia while keeping API costs low, the s
 
 1. **Short-Term Working Memory (Redis)**: The most recent 20 messages are instantly loaded into the LLM's context window for immediate conversational awareness.
 2. **Overflow Buffer (Redis)**: As conversations grow, older messages are evicted from working memory and staged in a temporary buffer. 
-3. **Rolling Summarization (Redis)**: Once the buffer hits 20 messages, a background reasoning model condenses them into a dense, chronological summary (< 200 words). This summary stays in the LLM context, providing medium-term awareness without ballooning token counts.
+3. **Rolling Summarization (PostgreSQL + Redis)**: Once the buffer hits 20 messages, a background reasoning model condenses them into a dense, chronological summary (< 200 words). This summary is **persistently stored in PostgreSQL** and cached in Redis, providing the agent with an permanent, architectural map of the user's progress.
 4. **Semantic Fact Database (Memory RAG Pipeline)**: The system utilizes a continuous **Retrieval-Augmented Generation (RAG)** pipeline for long-term memory. It automatically extracts permanent, high-value facts (e.g., names, specific music goals, preferences) from the background buffer. These facts are converted to vector embeddings and dynamically injected into the agent's prompt via Cosine Similarity *before* the AI processes the user's message, ensuring deep context without bloated token counts.
-5. **Immutable Audit Log (PostgreSQL)**: Every raw message is permanently stored in a relational database for administrative analytics and historical fallback.
+5. **Immutable Audit Log & Cold-Start Recovery (PostgreSQL)**: Every raw message is permanently stored in a relational database. This serves as the system's **"Ground Truth"**. If the active Redis context expires (after 48 hours of inactivity), the system performs an automatic **Cold-Start Recovery**, pulling the last 20 messages from PostgreSQL to re-warm the active context instantly.
 
 ### Robust Vision Accessibility & Multimodality
 The ingress layer is built to handle the chaotic nature of real-world file uploads safely:
@@ -78,6 +78,7 @@ Ensuring data integrity is paramount, especially when grading group assignments:
 
 ### Advanced Resilience & Scheduling
 StormTracker operates independently and must be fault-tolerant:
+- **Cold-Start Persistence**: By leveraging PostgreSQL as the source of truth for both raw messages and rolling summaries, the system is immune to Redis volatility. Conversation context is restored automatically on the first message following a cache clearance.
 - **Out-of-Band Memory Synchronization**: When the bot sends automated nudges, these actions are injected out-of-band directly into the persistent conversation timeline. The AI agent retains full context of its own automated reminders.
 - **Fault-Tolerant Async Scheduler**: Proactive tasks are driven by APScheduler, utilizing Redis-backed locking to ensure background jobs (like midnight reports) execute flawlessly even in multi-instance or crashing scenarios.
 - **Exponential Backoff**: Critical external API calls (e.g., OpenRouter embeddings) are protected by `tenacity` retry logic with exponential backoff to gracefully handle HTTP 429 rate limits.

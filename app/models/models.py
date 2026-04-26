@@ -26,6 +26,7 @@ class User(Base):
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    conversation_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     submissions: Mapped[list["Submission"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
