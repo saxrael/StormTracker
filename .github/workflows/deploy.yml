@@ -66,4 +66,6 @@ jobs:
             IMAGE_SIMILARITY_THRESHOLD=${{ secrets.IMAGE_SIMILARITY_THRESHOLD }}
             EOF
             docker compose -f docker-compose.prod.yml up -d --build
-            docker compose -f docker-compose.prod.yml exec -T app alembic upgrade head || docker compose -f docker-compose.prod.yml exec -T app alembic stamp head
+            docker compose -f docker-compose.prod.yml exec -T db psql -U ${{ secrets.POSTGRES_USER }} -d ${{ secrets.POSTGRES_DB }} -c "DELETE FROM alembic_version;" || true
+            docker compose -f docker-compose.prod.yml exec -T app alembic stamp 4d882c62b11e
+            docker compose -f docker-compose.prod.yml exec -T app alembic upgrade head
