@@ -29,9 +29,7 @@ def _markdown_to_html(text: str) -> str:
 
     text = html.escape(text)
 
-    # Headings → bold (must come before ** handling)
     text = re.sub(r"^#{1,3}\s+(.+)$", r"<b>\1</b>", text, flags=re.MULTILINE)
-
     text = re.sub(r"```(.*?)```", r"<pre>\1</pre>", text, flags=re.DOTALL)
     text = re.sub(r"`(.*?)`", r"<code>\1</code>", text)
     text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
