@@ -40,7 +40,18 @@ async def telegram_webhook(
     telegram_id = message.from_.id
     username = message.from_.username
 
-    if not await check_rate_limit(chat_id):
+    user_text = message.text or message.caption or "Uploaded an image."
+
+    async with async_session_maker() as session:
+        profile = await profile_service.get_or_create_profile(
+            session, telegram_id, username
+        )
+        db_user_id = profile["user_id"]
+        role = profile["role"]
+        is_onboarded = profile["is_onboarded"]
+        full_name = profile["full_name"]
+
+    if not await check_rate_limit(chat_id, role):
         await telegram_service.send_message(
             chat_id=chat_id,
             text=(
@@ -49,8 +60,6 @@ async def telegram_webhook(
             ),
         )
         return {"status": "rate_limited"}
-
-    user_text = message.text or message.caption or "Uploaded an image."
 
     image_base64 = None
     file_id = None
@@ -96,15 +105,6 @@ async def telegram_webhook(
                 "from Telegram servers. Explicitly inform them to try "
                 "sending it again or compressing it.]"
             )
-
-    async with async_session_maker() as session:
-        profile = await profile_service.get_or_create_profile(
-            session, telegram_id, username
-        )
-        db_user_id = profile["user_id"]
-        role = profile["role"]
-        is_onboarded = profile["is_onboarded"]
-        full_name = profile["full_name"]
 
     history = await conversation_service.get_history(
         telegram_id, async_session_maker, redis_client

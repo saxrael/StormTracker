@@ -19,6 +19,7 @@ StormTracker is not a rigid, amnesiac script. It is built as a **ReAct (Reason +
 - **It Remembers You**: It maintains an ongoing understanding of your past conversations and tracks your performance over time. 
 - **It Thinks Before Acting**: When you ask a question, it pauses to *reason* about what you need, decides whether to check the database or just chat naturally, and then responds.
 - **It Takes Initiative**: It doesn't just wait for you to text it. It manages its own schedule to ensure everyone stays on track.
+- **Role Flexibility**: Whether you are a core member of a music group or a guest developer practicing on your own, StormTracker adapts its behavior and data tracking to suit your membership level.
 
 ### 🎯 Key Benefits & Features
 
@@ -27,6 +28,7 @@ StormTracker is not a rigid, amnesiac script. It is built as a **ReAct (Reason +
 *   **Zero Cheating**: Trying to send the same screenshot twice? The system instantly recognizes duplicate images and rejects them, ensuring complete fairness across the group.
 *   **Automated PDF Reports**: At midnight, StormTracker generates a beautiful, detailed PDF report containing group averages, visual bar charts, and a list of missing submissions, delivering it directly to administrators.
 *   **Chat with your Data**: Ask naturally, *"How is John doing on Chords this week?"* or *"What is my average score?"*, and the AI will analyze the data and provide instant answers.
+*   **Universal Access**: Not part of the official group? No problem. You can join as a **Public User** to track your own progress privately while core members follow the group-wide curriculum.
 
 ---
 
@@ -43,6 +45,7 @@ StormTracker is driven by a hybrid intelligence model:
 StormTracker utilizes a Tier-1 production-grade system prompt designed to tightly control the ReAct Agent's autonomous behavior:
 - **Negative Prompting (Behavioral Fences)**: Explicit constraints prevent the classic "overly-hyped chatbot" syndrome, forcing the agent to act as a strict, professional musical mentor.
 - **Cognitive Memory Protocols**: Strict logical boundaries separate the use of qualitative contextual memory (RAG) from quantitative data fetching (Database Analytics), completely eliminating data hallucination.
+- **Onboarding & Role Gatekeeper**: A sophisticated state-machine hardcoded into the prompt ensures users are correctly categorized (New -> Pending -> Member/Public) before being allowed to interact with core tools.
 - **Immutable RBAC**: Role-Based Access Control is hardcoded directly into the prompt via Markdown tables, which the LLM parses natively to prevent privilege escalation attacks.
 - **Recency Bias Optimization**: Highly dynamic data arrays (like active memory facts and system status) are injected at the absolute bottom of the prompt to maximize the LLM's attention mechanism right before token generation.
 
@@ -60,8 +63,15 @@ The ingress layer is built to handle the chaotic nature of real-world file uploa
 - **Document Safety Gates**: The webhook gracefully processes both compressed photos and raw document uploads, enforcing a strict **5MB payload limit** to prevent memory exhaustion.
 - **Payload Normalization**: Advanced content normalization ensures stable multimodal interactions with OpenRouter schemas, preventing TypeErrors and crashes during complex image processing.
 
+### Human-In-The-Loop (HITL) Governance
+StormTracker bridges the gap between AI autonomy and human oversight:
+- **Asynchronous Verification**: When new students request to join the private group, the agent automatically notifies **Root Admins** via Telegram.
+- **Direct Resolution**: Admins can approve or reject these requests with a single message (e.g., *"Approve 12345"*). The agent then re-configures the user's role and notifies them of the decision instantly.
+
 ### Security & Anti-Fraud
 Ensuring data integrity is paramount, especially when grading group assignments:
+- **Argon2id Async Hashing**: All invite tokens and passkeys are hashed using Argon2id. These operations are offloaded to dedicated threads (`asyncio.to_thread`) to ensure the agent's main event loop remains non-blocking and responsive.
+- **Prefix-Based Token Lookups**: To prevent timing attacks and optimize Redis performance, tokens use a `prefix-secret` format, allowing O(1) lookups.
 - **Cosine Distance Vector Comparisons**: The cryptographic anti-fraud system converts every uploaded image into a mathematical vector embedding. It uses Cosine Distance to compare incoming vectors against past submissions, instantly catching visual duplicates even if the image metadata was altered.
 - **Prompt Isolation**: Background memory synthesis tasks are hardened against prompt injection attacks using strict **XML-based prompt isolation**.
 - **Safe Rich-Text Egress**: A dedicated **Markdown-to-HTML Translation Layer** sanitizes and formats all outgoing messages. This ensures that dynamic code blocks, links, and bold text never cause Telegram API parsing crashes.
@@ -99,5 +109,9 @@ StormTracker is designed for lean, single-node deployments using Docker.
    *Note: The production compose file utilizes Caddy to automatically provision and renew Let's Encrypt SSL certificates required for Telegram Webhooks.*
 
 #### Security & Access Control
-- **Role-Based Access**: Standard users can only query their own data. Admin tools (like generating group reports and cross-user analytics) are locked down.
-- **Bootstrapping**: The first admin is created using a one-time, secure `ROOT_CLAIM_TOKEN` injected during deployment. Once claimed, admins can dynamically generate single-use invite passkeys for other staff.
+- **4-Tiered Role System**:
+    - **Root**: System owners who manage verifications and generate admin tokens.
+    - **Admin**: Staff who can run group-wide reports and cross-user analytics.
+    - **Member**: Verified students whose data is included in group assignments.
+    - **Public**: Guests who use the bot for personal training (data excluded from group reports).
+- **Bootstrapping**: The first root admin is created using a one-time, secure `ROOT_CLAIM_TOKEN`. Once claimed, they can generate single-use invite passkeys for other admins or resolve pending user verifications.

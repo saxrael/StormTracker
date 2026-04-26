@@ -22,7 +22,7 @@ class User(Base):
     )
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    role: Mapped[str] = mapped_column(String(50), nullable=False, default="member")
+    role: Mapped[str] = mapped_column(String(50), nullable=False, default="new")
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

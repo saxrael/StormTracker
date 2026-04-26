@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 import string
 
@@ -7,27 +8,29 @@ from argon2.exceptions import VerifyMismatchError
 ph = PasswordHasher()
 
 INVITE_TOKEN_ALPHABET = string.ascii_letters + string.digits
-INVITE_TOKEN_LENGTH = 8
 
 
-def hash_passkey(plain_text: str) -> str:
-    return ph.hash(plain_text)
+async def hash_passkey(plain_text: str) -> str:
+    return await asyncio.to_thread(ph.hash, plain_text)
 
 
-def verify_passkey(plain_text: str, hashed_passkey: str) -> bool:
-    try:
-        return ph.verify(hashed_passkey, plain_text)
-    except VerifyMismatchError:
-        return False
+async def verify_passkey(plain_text: str, hashed_passkey: str) -> bool:
+    def _verify():
+        try:
+            return ph.verify(hashed_passkey, plain_text)
+        except VerifyMismatchError:
+            return False
+
+    return await asyncio.to_thread(_verify)
 
 
 def generate_invite_token() -> str:
-    return "".join(
-        secrets.choice(INVITE_TOKEN_ALPHABET) for _ in range(INVITE_TOKEN_LENGTH)
-    )
+    prefix = "".join(secrets.choice(INVITE_TOKEN_ALPHABET) for _ in range(6))
+    secret = "".join(secrets.choice(INVITE_TOKEN_ALPHABET) for _ in range(10))
+    return f"{prefix}-{secret}"
 
 
-async def check_rate_limit(chat_id: int) -> bool:
+async def check_rate_limit(chat_id: int, role: str) -> bool:
     from app.config import get_settings
     from app.services.database import redis_client
 
@@ -38,4 +41,5 @@ async def check_rate_limit(chat_id: int) -> bool:
     if current_count == 1:
         await redis_client.expire(key, 60)
 
-    return current_count <= settings.RATE_LIMIT_REQUESTS
+    limit = settings.RATE_LIMIT_REQUESTS if role in ["member", "admin", "root"] else 5
+    return current_count <= limit

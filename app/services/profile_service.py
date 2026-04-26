@@ -10,7 +10,7 @@ async def get_or_create_profile(
 ) -> dict:
     stmt = (
         insert(User)
-        .values(telegram_id=telegram_id, username=username, role="member")
+        .values(telegram_id=telegram_id, username=username, role="new")
         .on_conflict_do_update(
             index_elements=["telegram_id"],
             set_=dict(username=username),
@@ -21,7 +21,7 @@ async def get_or_create_profile(
     user = result.scalar_one()
     await session.commit()
 
-    is_onboarded = bool(user.full_name)
+    is_onboarded = user.role not in ["new", "pending"]
 
     return {
         "user_id": user.id,

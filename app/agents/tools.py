@@ -9,14 +9,14 @@ from sqlalchemy import func, select
 from app.agents.llm_setup import get_image_embedding
 from app.config import get_settings
 from app.models.models import Metric, Submission, User
-from app.services import profile_service
 from app.services.database import async_session, redis_client
 from app.services.report_service import (
     get_defaulters_in_range,
     get_submissions_in_range,
 )
+from app.services.telegram_service import telegram_service
+from app.utils import security
 from app.utils.formatters import generate_text_ledger
-from app.utils.security import verify_passkey
 
 
 @tool
@@ -62,10 +62,10 @@ async def query_analytics(
             .where(Submission.created_at <= end_time)
         )
 
-        if role != "admin":
+        if role not in ["admin", "root"]:
             stmt = stmt.where(Submission.user_id == db_user_id)
 
-        if role == "admin" and target_name:
+        if role in ["admin", "root"] and target_name:
             stmt = stmt.where(User.full_name.ilike(f"%{target_name}%"))
 
         if exercise_type:
@@ -93,6 +93,22 @@ async def query_analytics(
 
 
 @tool
+async def create_invite_token(*, role: Annotated[str, InjectedToolArg]) -> str:
+    """Generate a single-use invite token to grant admin privileges
+    to a new staff member."""
+    if role != "root":
+        return "Error: Only root admins can generate invite tokens."
+
+    raw_token = security.generate_invite_token()
+    prefix = raw_token.split("-")[0]
+
+    hashed_token = await security.hash_passkey(raw_token)
+    await redis_client.set(f"invite:{prefix}", hashed_token, ex=86400)
+
+    return f"Invite generated successfully. Token: {raw_token} (Expires in 24 hours)."
+
+
+@tool
 async def authenticate_user(
     token: str, *, db_user_id: Annotated[str, InjectedToolArg]
 ) -> str:
@@ -109,18 +125,22 @@ async def authenticate_user(
             return "User not found in database."
 
         if settings.ROOT_CLAIM_TOKEN and token == settings.ROOT_CLAIM_TOKEN:
-            user.role = "admin"
+            user.role = "root"
             await session.commit()
             return "Root admin claimed successfully."
 
-        keys = await redis_client.keys("invite:*")
-        for key in keys:
-            hashed_passkey = await redis_client.get(key)
-            if hashed_passkey and verify_passkey(token, hashed_passkey):
-                user.role = "admin"
-                await session.commit()
-                await redis_client.delete(key)
-                return "Admin access granted."
+        if "-" in token:
+            prefix = token.split("-")[0]
+            redis_key = f"invite:{prefix}"
+            hashed_passkey = await redis_client.get(redis_key)
+
+            if hashed_passkey:
+                is_valid = await security.verify_passkey(token, hashed_passkey)
+                if is_valid:
+                    user.role = "admin"
+                    await session.commit()
+                    await redis_client.delete(redis_key)
+                    return "Admin access granted."
 
         return "Invalid token"
 
@@ -189,12 +209,88 @@ async def visual_search(*, image_base64: Annotated[str, InjectedToolArg]) -> str
 
 
 @tool
-async def update_profile(
+async def submit_for_verification(
     full_name: str,
     *,
     telegram_id: Annotated[int, InjectedToolArg],
+    username: Annotated[str | None, InjectedToolArg] = None,
 ) -> str:
-    """Save a user's real full name to complete the onboarding process."""
+    """Submit a user's name for root admin verification to join the private group."""
     async with async_session() as session:
-        await profile_service.update_full_name(session, telegram_id, full_name)
-    return "Profile updated successfully. User is now onboarded."
+        user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+        if user:
+            user.full_name = full_name
+            user.role = "pending"
+            await session.commit()
+
+        roots = await session.scalars(
+            select(User.telegram_id).where(User.role == "root")
+        )
+        for root_id in roots:
+            try:
+                user_info = f"Full Name: {full_name}\n"
+                if username:
+                    user_info += f"Telegram Username: @{username}\n"
+                user_info += f"ID: {telegram_id}"
+
+                await telegram_service.send_message(
+                    root_id,
+                    f"🔔 Verification Request:\n{user_info}\n\n"
+                    f"Reply with: 'Approve {telegram_id}' or 'Reject {telegram_id}'",
+                )
+            except Exception:
+                pass
+    return "Verification request sent to root admin. User status is pending."
+
+
+@tool
+async def resolve_verification(
+    target_telegram_id: int, action: str, *, role: Annotated[str, InjectedToolArg]
+) -> str:
+    """Root admin tool to 'approve' or 'reject' a pending user's verification."""
+    if role != "root":
+        return "Error: Only root admins can resolve verifications."
+
+    action = action.lower()
+    if action not in ["approve", "reject"]:
+        return "Error: Action must be 'approve' or 'reject'."
+
+    async with async_session() as session:
+        user = await session.scalar(
+            select(User).where(User.telegram_id == target_telegram_id)
+        )
+        if not user or user.role != "pending":
+            return "Error: User not found or not in pending state."
+
+        new_role = "member" if action == "approve" else "public"
+        user.role = new_role
+        await session.commit()
+
+        if action == "approve":
+            msg = (
+                "🎉 Your verification for Mighty Storm is approved! "
+                "You can now submit assignments."
+            )
+        else:
+            msg = (
+                "ℹ️ Your membership request for Mighty Storm was not approved at "
+                "this time. However, you've been onboarded as a Public User. "
+                "You can still use me to track your personal ear-training "
+                "progress and get analytical advice. I'm still here to help you! 🎵"
+            )
+        try:
+            await telegram_service.send_message(target_telegram_id, msg)
+        except Exception:
+            pass
+    return f"User {target_telegram_id} successfully resolved as {new_role}."
+
+
+@tool
+async def onboard_public_user(*, telegram_id: Annotated[int, InjectedToolArg]) -> str:
+    """Instantly onboard a user as a public member (no admin verification needed)."""
+    async with async_session() as session:
+        user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+        if user:
+            user.role = "public"
+            await session.commit()
+    return "User instantly onboarded as public."

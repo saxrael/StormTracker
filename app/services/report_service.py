@@ -33,6 +33,7 @@ async def get_daily_submissions(
         .join(Metric, Submission.id == Metric.submission_id)
         .where(Submission.created_at >= start_datetime)
         .where(Submission.created_at <= end_datetime)
+        .where(User.role == "member")
     )
 
     result = await session.execute(stmt)
@@ -107,6 +108,7 @@ async def get_submissions_in_range(
         .join(Metric, Submission.id == Metric.submission_id)
         .where(Submission.created_at >= start_time)
         .where(Submission.created_at <= end_time)
+        .where(User.role == "member")
     )
 
     result = await session.execute(stmt)
@@ -156,7 +158,7 @@ async def get_defaulters_in_range(
 
 
 async def get_admin_ids(session: AsyncSession) -> list[int]:
-    stmt = select(User.telegram_id).where(User.role == "admin")
+    stmt = select(User.telegram_id).where(User.role.in_(["admin", "root"]))
     result = await session.execute(stmt)
     rows = result.scalars().all()
 

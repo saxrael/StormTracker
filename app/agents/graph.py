@@ -12,9 +12,12 @@ from app.agents.llm_setup import get_gemma_llm, get_image_embedding
 from app.agents.prompts import get_formatted_system_prompt
 from app.agents.tools import (
     authenticate_user,
+    create_invite_token,
     generate_admin_report,
+    onboard_public_user,
     query_analytics,
-    update_profile,
+    resolve_verification,
+    submit_for_verification,
     visual_search,
 )
 from app.config import get_settings
@@ -49,7 +52,10 @@ _TOOL_REGISTRY = {
     "authenticate_user": authenticate_user,
     "generate_admin_report": generate_admin_report,
     "visual_search": visual_search,
-    "update_profile": update_profile,
+    "submit_for_verification": submit_for_verification,
+    "resolve_verification": resolve_verification,
+    "onboard_public_user": onboard_public_user,
+    "create_invite_token": create_invite_token,
 }
 
 
@@ -62,7 +68,10 @@ async def reasoning_core(state: AgentState) -> dict:
             authenticate_user,
             generate_admin_report,
             visual_search,
-            update_profile,
+            submit_for_verification,
+            resolve_verification,
+            onboard_public_user,
+            create_invite_token,
         ]
     )
     system_prompt = get_formatted_system_prompt(
@@ -169,7 +178,7 @@ async def tool_executor(state: AgentState) -> dict:
                             .values(
                                 telegram_id=user_id_tg,
                                 username=username,
-                                role=state.get("role", "member"),
+                                role=state.get("role", "new"),
                             )
                             .on_conflict_do_update(
                                 index_elements=["telegram_id"],
@@ -235,14 +244,23 @@ async def tool_executor(state: AgentState) -> dict:
         elif name in _TOOL_REGISTRY:
             try:
                 tool_args = args.copy()
-                if name in ["query_analytics", "authenticate_user"]:
+                if name in [
+                    "query_analytics",
+                    "authenticate_user",
+                ]:
                     tool_args["db_user_id"] = state["db_user_id"]
-                if name == "query_analytics":
+                if name in [
+                    "query_analytics",
+                    "resolve_verification",
+                    "create_invite_token",
+                ]:
                     tool_args["role"] = state["role"]
                 if name == "visual_search":
                     tool_args["image_base64"] = state.get("image_base64")
-                if name == "update_profile":
+                if name in ["submit_for_verification", "onboard_public_user"]:
                     tool_args["telegram_id"] = state["user_id"]
+                    if name == "submit_for_verification":
+                        tool_args["username"] = state.get("username")
                 result = await _TOOL_REGISTRY[name].ainvoke(tool_args)
                 tool_messages.append(
                     ToolMessage(content=str(result), tool_call_id=call_id)

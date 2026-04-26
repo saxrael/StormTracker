@@ -23,3 +23,5 @@ Thumbs.db
 *.jpg
 pgdata/
 redisdata/
+generate.py
+FULL_CODEBASE.txt
