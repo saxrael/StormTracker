@@ -28,6 +28,7 @@ StormTracker is not a rigid, amnesiac script. It is built as a **ReAct (Reason +
 *   **Zero Cheating**: Trying to send the same screenshot twice? The system instantly recognizes duplicate images and rejects them, ensuring complete fairness across the group.
 *   **Automated PDF Reports**: At midnight, StormTracker generates a beautiful, detailed PDF report containing group averages, visual bar charts, and a list of missing submissions, delivering it directly to administrators.
 *   **Chat with your Data**: Ask naturally, *"How is John doing on Chords this week?"* or *"What is my average score?"*, and the AI will analyze the data and provide instant answers.
+*   **Direct Admin Communication**: Administrators can send one-on-one messages or group-wide broadcasts directly through the bot, ensuring important announcements never get lost in the chat noise.
 *   **Universal Access**: Not part of the official group? No problem. You can join as a **Public User** to track your own progress privately while core members follow the group-wide curriculum.
 
 ---
@@ -54,19 +55,21 @@ To support continuous context without amnesia while keeping API costs low, the s
 
 1. **Short-Term Working Memory (Redis)**: The most recent 20 messages are instantly loaded into the LLM's context window for immediate conversational awareness.
 2. **Overflow Buffer (Redis)**: As conversations grow, older messages are evicted from working memory and staged in a temporary buffer. 
-3. **Rolling Summarization (PostgreSQL + Redis)**: Once the buffer hits 20 messages, a background reasoning model condenses them into a dense, chronological summary (< 200 words). This summary is **persistently stored in PostgreSQL** and cached in Redis, providing the agent with an permanent, architectural map of the user's progress.
-4. **Semantic Fact Database (Memory RAG Pipeline)**: The system utilizes a continuous **Retrieval-Augmented Generation (RAG)** pipeline for long-term memory. It automatically extracts permanent, high-value facts (e.g., names, specific music goals, preferences) from the background buffer. These facts are converted to vector embeddings and dynamically injected into the agent's prompt via Cosine Similarity *before* the AI processes the user's message, ensuring deep context without bloated token counts.
-5. **Immutable Audit Log & Cold-Start Recovery (PostgreSQL)**: Every raw message is permanently stored in a relational database. This serves as the system's **"Ground Truth"**. If the active Redis context expires (after 48 hours of inactivity), the system performs an automatic **Cold-Start Recovery**, pulling the last 20 messages from PostgreSQL to re-warm the active context instantly.
+3. **Rolling Summarization (PostgreSQL + Redis)**: Once the buffer hits 20 messages, a background reasoning model condenses them into a dense summary (< 250 words). This summary focuses on **narrative and momentum** (current struggles and immediate intent), leaving hard facts for the RAG layer. It is persistently stored in PostgreSQL to ensure an unbreakable architectural map of the user's progress.
+4. **Semantic Fact Database (Memory RAG Pipeline)**: The system utilizes a continuous **Retrieval-Augmented Generation (RAG)** pipeline for long-term memory. It automatically extracts atomic facts (e.g., names, specific music goals, milestones) from the background buffer. These facts are converted to vector embeddings and dynamically injected into the agent's prompt via Cosine Similarity *before* the AI processes the user's message, ensuring deep context without bloated token counts.
+5. **Memory Integrity (Semantic Deduplication)**: To prevent context clutter, every new fact undergoes a **Cosine Similarity check** against existing memory. If a semantically identical fact exists (Distance < 0.1), the system rejects the duplicate, keeping the agent's long-term memory lean and high-value.
+6. **Immutable Audit Log & Cold-Start Recovery (PostgreSQL)**: Every raw message is permanently stored in a relational database. This serves as the system's **"Ground Truth"**. If the active Redis context expires, the system performs an automatic **Cold-Start Recovery**, pulling the last 20 messages from PostgreSQL to re-warm the active context instantly.
 
 ### Robust Vision Accessibility & Multimodality
 The ingress layer is built to handle the chaotic nature of real-world file uploads safely:
 - **Document Safety Gates**: The webhook gracefully processes both compressed photos and raw document uploads, enforcing a strict **5MB payload limit** to prevent memory exhaustion.
 - **Payload Normalization**: Advanced content normalization ensures stable multimodal interactions with OpenRouter schemas, preventing TypeErrors and crashes during complex image processing.
 
-### Human-In-The-Loop (HITL) Governance
+### Human-In-The-Loop (HITL) Governance & Outreach
 StormTracker bridges the gap between AI autonomy and human oversight:
 - **Asynchronous Verification**: When new students request to join the private group, the agent automatically notifies **Root Admins** via Telegram.
 - **Direct Resolution**: Admins can approve or reject these requests with a single message (e.g., *"Approve 12345"*). The agent then re-configures the user's role and notifies them of the decision instantly.
+- **Proactive Outreach**: Admins can use the bot as a secure relay to send direct messages or group-wide broadcasts. These messages are injected into the users' conversational memory, ensuring the AI agent remains fully aware of human-led directives.
 
 ### Security & Anti-Fraud
 Ensuring data integrity is paramount, especially when grading group assignments:
@@ -111,8 +114,8 @@ StormTracker is designed for lean, single-node deployments using Docker.
 
 #### Security & Access Control
 - **4-Tiered Role System**:
-    - **Root**: System owners who manage verifications and generate admin tokens.
-    - **Admin**: Staff who can run group-wide reports and cross-user analytics.
+    - **Root**: System owners who manage verifications, generate tokens, and send broadcasts.
+    - **Admin**: Staff who can message members, run group-wide reports, and analyze data.
     - **Member**: Verified students whose data is included in group assignments.
     - **Public**: Guests who use the bot for personal training (data excluded from group reports).
 - **Bootstrapping**: The first root admin is created using a one-time, secure `ROOT_CLAIM_TOKEN`. Once claimed, they can generate single-use invite passkeys for other admins or resolve pending user verifications.
