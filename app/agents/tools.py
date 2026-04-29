@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime, timedelta
 from typing import Annotated
@@ -9,6 +10,7 @@ from sqlalchemy import func, select
 from app.agents.llm_setup import get_image_embedding
 from app.config import get_settings
 from app.models.models import Metric, Submission, User
+from app.services import conversation_service
 from app.services.database import async_session, redis_client
 from app.services.report_service import (
     get_defaulters_in_range,
@@ -97,7 +99,7 @@ async def create_invite_token(*, role: Annotated[str, InjectedToolArg]) -> str:
     """Generate a single-use invite token to grant admin privileges
     to a new staff member."""
     if role != "root":
-        return "Error: Only root admins can generate invite tokens."
+        return "Error: Only the root admin can generate invite tokens."
 
     raw_token = security.generate_invite_token()
     prefix = raw_token.split("-")[0]
@@ -294,3 +296,97 @@ async def onboard_public_user(*, telegram_id: Annotated[int, InjectedToolArg]) -
             user.role = "public"
             await session.commit()
     return "User instantly onboarded as public."
+
+
+@tool
+async def message_member(
+    target_name: str,
+    message: str,
+    *,
+    role: Annotated[str, InjectedToolArg],
+    admin_name: Annotated[str, InjectedToolArg],
+) -> str:
+    """Send a direct message to a specific member of the group."""
+    if role not in ["admin", "root"]:
+        return "Error: Only admins can send direct messages."
+
+    async with async_session() as session:
+        stmt = (
+            select(User)
+            .where(User.role == "member")
+            .where(User.full_name.ilike(f"%{target_name}%"))
+        )
+        result = await session.execute(stmt)
+        users = result.scalars().all()
+
+        if not users:
+            return f"Error: No member found matching '{target_name}'."
+        if len(users) > 1:
+            names = ", ".join([u.full_name for u in users])
+            return f"Error: Multiple members found ({names}). Please be more specific."
+
+        target_user = users[0]
+        formatted_msg = f"📢 Message from Admin ({admin_name}):\n\n{message}"
+
+        try:
+            await telegram_service.send_message(target_user.telegram_id, formatted_msg)
+            await conversation_service.persist_turn(
+                telegram_id=target_user.telegram_id,
+                user_text=None,
+                ai_text=formatted_msg,
+                session_factory=async_session,
+                redis_client=redis_client,
+            )
+            return (
+                f"Message successfully sent to {target_user.full_name} "
+                f"and saved to their memory."
+            )
+        except Exception as e:
+            return (
+                f"Error: Failed to send message. The user may have blocked the bot. "
+                f"Details: {str(e)}"
+            )
+
+
+@tool
+async def broadcast_to_members(
+    message: str,
+    *,
+    role: Annotated[str, InjectedToolArg],
+    admin_name: Annotated[str, InjectedToolArg],
+) -> str:
+    """Broadcast a message to ALL active members of the group."""
+    if role not in ["admin", "root"]:
+        return "Error: Only admins can broadcast messages."
+
+    async with async_session() as session:
+        stmt = select(User).where(User.role == "member")
+        result = await session.execute(stmt)
+        users = result.scalars().all()
+
+        if not users:
+            return "Error: No active members found in the database."
+
+        formatted_msg = f"📢 Message from Admin ({admin_name}):\n\n{message}"
+        success_count = 0
+        fail_count = 0
+
+        for user in users:
+            try:
+                await telegram_service.send_message(user.telegram_id, formatted_msg)
+                await conversation_service.persist_turn(
+                    telegram_id=user.telegram_id,
+                    user_text=None,
+                    ai_text=formatted_msg,
+                    session_factory=async_session,
+                    redis_client=redis_client,
+                )
+                success_count += 1
+            except Exception:
+                fail_count += 1
+            await asyncio.sleep(0.05)
+
+    return (
+        f"Broadcast complete. Sent to {success_count} members. "
+        f"Failed to reach {fail_count} members."
+    )

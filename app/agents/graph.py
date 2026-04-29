@@ -12,8 +12,10 @@ from app.agents.llm_setup import get_gemma_llm, get_image_embedding
 from app.agents.prompts import get_formatted_system_prompt
 from app.agents.tools import (
     authenticate_user,
+    broadcast_to_members,
     create_invite_token,
     generate_admin_report,
+    message_member,
     onboard_public_user,
     query_analytics,
     resolve_verification,
@@ -56,6 +58,8 @@ _TOOL_REGISTRY = {
     "resolve_verification": resolve_verification,
     "onboard_public_user": onboard_public_user,
     "create_invite_token": create_invite_token,
+    "message_member": message_member,
+    "broadcast_to_members": broadcast_to_members,
 }
 
 
@@ -72,6 +76,8 @@ async def reasoning_core(state: AgentState) -> dict:
             resolve_verification,
             onboard_public_user,
             create_invite_token,
+            message_member,
+            broadcast_to_members,
         ]
     )
     system_prompt = get_formatted_system_prompt(
@@ -253,8 +259,12 @@ async def tool_executor(state: AgentState) -> dict:
                     "query_analytics",
                     "resolve_verification",
                     "create_invite_token",
+                    "message_member",
+                    "broadcast_to_members",
                 ]:
                     tool_args["role"] = state["role"]
+                if name in ["message_member", "broadcast_to_members"]:
+                    tool_args["admin_name"] = state.get("full_name") or "Admin"
                 if name == "visual_search":
                     tool_args["image_base64"] = state.get("image_base64")
                 if name in ["submit_for_verification", "onboard_public_user"]:
