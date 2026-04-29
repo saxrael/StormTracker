@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 
 from langfuse import observe
 from sqlalchemy import select, update
@@ -19,9 +21,9 @@ async def retrieve_relevant_facts(
     stmt = (
         select(UserMemoryFact.fact_text)
         .where(UserMemoryFact.user_id == db_user_id)
-        .where(distance_expr < 0.6)
+        .where(distance_expr < 0.75)
         .order_by(distance_expr)
-        .limit(3)
+        .limit(5)
     )
     result = await session.execute(stmt)
     return [row[0] for row in result.all()]
@@ -108,38 +110,69 @@ async def process_cognitive_memory(
                         "milestones (achievements, course starts) AND qualitative "
                         "mentorship insights (learning style, tone, recurring "
                         "struggles, explicit preferences). Ignore transient chatter. "
-                        "If there are NO permanent facts, output the exact word: NONE"
+                        "You MUST output exactly a JSON array of strings. Do not add "
+                        "markdown formatting.\n\n"
+                        "EXAMPLE INPUT:\n"
+                        "User: Hey, I just started learning piano today. "
+                        "I'm struggling with chords.\n"
+                        "AI: That's great! I can help.\n"
+                        "User: Thanks! By the way, I am the chairperson of "
+                        "Mighty Storm.\n\n"
+                        "EXAMPLE OUTPUT:\n"
+                        '["User started learning piano in April 2026", '
+                        '"User struggles with chords", "User is the '
+                        'chairperson of Mighty Storm"]\n\n'
+                        "If there are NO permanent facts, output exactly:[]"
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"<messages>\n{messages_block}\n</messages>\n\n"
-                        "Generate the extracted facts as a simple bulleted list."
+                        f"<messages>\n{messages_block}\n"
+                        "</messages>\n\nExtract facts as a JSON array:"
                     ),
                 },
             ],
             temperature=0.1,
         )
-        extracted_facts = facts_response.choices[0].message.content.strip()
+        extracted_text = facts_response.choices[0].message.content.strip()
+        match = re.search(r"\[.*\]", extracted_text, re.DOTALL)
 
-        if extracted_facts.upper() != "NONE":
-            embedding = await get_text_embedding(extracted_facts)
-
-            async with session_factory() as session:
-                result = await session.execute(
-                    select(User.id).where(User.telegram_id == telegram_id)
-                )
-                user_id = result.scalar_one()
-
-                session.add(
-                    UserMemoryFact(
-                        user_id=user_id,
-                        fact_text=extracted_facts,
-                        embedding=embedding,
+        if match:
+            facts_array = json.loads(match.group(0))
+            if facts_array:
+                async with session_factory() as session:
+                    user_id_query = await session.execute(
+                        select(User.id).where(User.telegram_id == telegram_id)
                     )
-                )
-                await session.commit()
+                    user_id = user_id_query.scalar_one()
+
+                    for fact in facts_array:
+                        if not fact or fact.upper() == "NONE":
+                            continue
+
+                        embedding = await get_text_embedding(fact)
+
+                        distance_expr = UserMemoryFact.embedding.cosine_distance(
+                            embedding
+                        )
+                        dup_check = await session.execute(
+                            select(UserMemoryFact.id)
+                            .where(UserMemoryFact.user_id == user_id)
+                            .where(distance_expr < 0.1)
+                            .limit(1)
+                        )
+
+                        if not dup_check.scalar_one_or_none():
+                            session.add(
+                                UserMemoryFact(
+                                    user_id=user_id,
+                                    fact_text=fact,
+                                    embedding=embedding,
+                                )
+                            )
+
+                    await session.commit()
 
     except Exception as e:
         logger.error("Cognitive memory processing failed for %s: %s", telegram_id, e)

@@ -112,7 +112,19 @@ async def telegram_webhook(
     summary = profile.get("conversation_summary")
 
     facts = []
-    if len(user_text.split()) >= 4:
+    filler_words = {
+        "ok",
+        "yes",
+        "no",
+        "thanks",
+        "thank you",
+        "hello",
+        "hi",
+        "hey",
+        "cool",
+        "done",
+    }
+    if user_text and user_text.strip().lower() not in filler_words:
         query_emb = await get_text_embedding(user_text)
         async with async_session_maker() as session:
             facts = await cognitive_service.retrieve_relevant_facts(
