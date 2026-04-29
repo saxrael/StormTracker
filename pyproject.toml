@@ -58,3 +58,6 @@ ignore = []
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
