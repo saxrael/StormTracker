@@ -1,8 +1,10 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.routers import cron, webhook
@@ -63,6 +65,9 @@ app = FastAPI(
 
 app.include_router(webhook.router, prefix="/api/v1")
 app.include_router(cron.router, prefix="/api/v1")
+
+if os.path.isdir("legal"):
+    app.mount("/legal", StaticFiles(directory="legal"), name="legal")
 
 
 @app.get("/health")
