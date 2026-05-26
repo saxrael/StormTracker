@@ -58,7 +58,6 @@ services:
     env_file: .env
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./legal:/srv/legal:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
