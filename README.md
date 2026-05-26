@@ -27,7 +27,7 @@ StormTracker is not a rigid, amnesiac script. It is built as a **ReAct (Reason +
 *   **Proactive Reminders (Nudges)**: If you forget to submit your assignment, the bot will send you friendly direct messages at 9:00 AM and 8:00 PM to keep you accountable.
 *   **Zero Cheating**: Trying to send the same screenshot twice? The system instantly recognizes duplicate images and rejects them, ensuring complete fairness across the group.
 *   **Automated PDF Reports**: At midnight, StormTracker generates a beautiful, detailed PDF report containing group averages, visual bar charts, and a list of missing submissions, delivering it directly to administrators.
-*   **Chat with your Data**: Ask naturally, *"How is John doing on Chords this week?"* or *"What is my average score?"*, and the AI will analyze the data and provide instant answers.
+*   **Chat with your Data & On-Demand Reporting**: Ask naturally, *"How is John doing on Chords this week?"* or *"What is my average score?"*, and the AI will analyze the data and provide instant answers. Administrators can also request real-time text-ledger summaries of submissions and defaulters (e.g., *"Who hasn't submitted today?"*).
 *   **Direct Admin Communication**: Administrators can send one-on-one messages or group-wide broadcasts directly through the bot, ensuring important announcements never get lost in the chat noise.
 *   **Universal Access**: Not part of the official group? No problem. You can join as a **Public User** to track your own progress privately while core members follow the group-wide curriculum.
 
@@ -75,7 +75,8 @@ StormTracker bridges the gap between AI autonomy and human oversight:
 Ensuring data integrity is paramount, especially when grading group assignments:
 - **Argon2id Async Hashing**: All invite tokens and passkeys are hashed using Argon2id. These operations are offloaded to dedicated threads (`asyncio.to_thread`) to ensure the agent's main event loop remains non-blocking and responsive.
 - **Prefix-Based Token Lookups**: To prevent timing attacks and optimize Redis performance, tokens use a `prefix-secret` format, allowing O(1) lookups.
-- **Cosine Distance Vector Comparisons**: The cryptographic anti-fraud system converts every uploaded image into a mathematical vector embedding. It uses Cosine Distance to compare incoming vectors against past submissions, instantly catching visual duplicates even if the image metadata was altered.
+- **Cosine Distance Vector Comparisons**: The cryptographic anti-fraud system converts every uploaded image into a mathematical vector embedding. It uses Cosine Distance to compare incoming vectors against past submissions, instantly catching visual duplicates even if the image metadata was altered. Additionally, administrators can perform manual checks on any screenshot using the `visual_search` tool to retrieve the top 3 closest matching database records.
+- **Role-Based API Rate Limiting**: To safeguard system resources and control LLM API consumption costs, a Redis-backed rate limiter intercepts incoming webhook updates, enforcing strict request quotas based on user status (e.g., 20 requests/minute for verified members, admins, and roots; 5 requests/minute for guest/unauthenticated users).
 - **Prompt Isolation**: Background memory synthesis tasks are hardened against prompt injection attacks using strict **XML-based prompt isolation**.
 - **Safe Rich-Text Egress**: A dedicated **Markdown-to-HTML Translation Layer** sanitizes and formats all outgoing messages. This ensures that dynamic code blocks, links, and bold text never cause Telegram API parsing crashes.
 
