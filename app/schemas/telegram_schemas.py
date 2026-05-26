@@ -48,8 +48,17 @@ class Message(BaseModel):
     document: Document | None = None
 
 
+class CallbackQuery(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    from_: User = Field(alias="from")
+    message: Message | None = None
+    data: str | None = None
+
+
 class TelegramUpdate(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     update_id: int
     message: Message | None = None
+    callback_query: CallbackQuery | None = None

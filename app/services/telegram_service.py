@@ -51,15 +51,50 @@ class TelegramService:
         )
         self.client = _client or httpx.AsyncClient(timeout=30.0)
 
-    async def send_message(self, chat_id: int, text: str) -> None:
+    async def send_message(
+        self, chat_id: int, text: str, reply_markup: dict | None = None
+    ) -> None:
         safe_html = _markdown_to_html(text)
+        payload = {
+            "chat_id": chat_id,
+            "text": safe_html,
+            "parse_mode": "HTML",
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
         response = await self.client.post(
             f"{self.base_url}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": safe_html,
-                "parse_mode": "HTML",
-            },
+            json=payload,
+        )
+        response.raise_for_status()
+
+    async def edit_message_text(
+        self, chat_id: int, message_id: int, text: str, reply_markup: dict | None = None
+    ) -> None:
+        safe_html = _markdown_to_html(text)
+        payload = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": safe_html,
+            "parse_mode": "HTML",
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        response = await self.client.post(
+            f"{self.base_url}/editMessageText", json=payload
+        )
+        response.raise_for_status()
+
+    async def answer_callback_query(
+        self, callback_query_id: str, text: str = "", show_alert: bool = False
+    ) -> None:
+        payload = {
+            "callback_query_id": callback_query_id,
+            "text": text,
+            "show_alert": show_alert,
+        }
+        response = await self.client.post(
+            f"{self.base_url}/answerCallbackQuery", json=payload
         )
         response.raise_for_status()
 

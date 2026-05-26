@@ -10,16 +10,13 @@ StormTracker is a Telegram-native, AI-powered assistant designed to automate the
 
 ### What is StormTracker?
 
-Tracking daily submissions via direct messaging creates a cluttered inbox, wastes hours of manual logging, and provides zero actionable analytics. StormTracker solves this by acting as your autonomous group manager. 
-
-Instead of dealing with spreadsheets or manual checklists, users simply send screenshots of their daily exercises to the bot. StormTracker instantly reads the images, understands the exercise types, extracts the exact metrics, and logs them. 
+Tracking daily submissions via direct messaging creates a cluttered inbox, wastes hours of manual logging, and provides zero actionable analytics. StormTracker solves this by acting as an autonomous group manager that handles the collection, grading, and analysis of daily assignments entirely through natural chat.
 
 ### Not Just a Bot, but a True AI Agent
 StormTracker is not a rigid, amnesiac script. It is built as a **ReAct (Reason + Act) AI Agent**, meaning it behaves like a human manager:
 - **It Remembers You**: It maintains an ongoing understanding of your past conversations and tracks your performance over time. 
 - **It Thinks Before Acting**: When you ask a question, it pauses to *reason* about what you need, decides whether to check the database or just chat naturally, and then responds.
 - **It Takes Initiative**: It doesn't just wait for you to text it. It manages its own schedule to ensure everyone stays on track.
-- **Role Flexibility**: Whether you are a core member of a music group or a guest developer practicing on your own, StormTracker adapts its behavior and data tracking to suit your membership level.
 
 ### 🎯 Key Benefits & Features
 
@@ -29,6 +26,7 @@ StormTracker is not a rigid, amnesiac script. It is built as a **ReAct (Reason +
 *   **Automated PDF Reports**: At midnight, StormTracker generates a beautiful, detailed PDF report containing group averages, visual bar charts, and a list of missing submissions, delivering it directly to administrators.
 *   **Chat with your Data & On-Demand Reporting**: Ask naturally, *"How is John doing on Chords this week?"* or *"What is my average score?"*, and the AI will analyze the data and provide instant answers. Administrators can also request real-time text-ledger summaries of submissions and defaulters (e.g., *"Who hasn't submitted today?"*).
 *   **Direct Admin Communication**: Administrators can send one-on-one messages or group-wide broadcasts directly through the bot, ensuring important announcements never get lost in the chat noise.
+*   **Autonomous Profile Management**: Users can dynamically update their personal information (such as correcting their full name) at any time through natural conversation, without needing administrative intervention.
 *   **Universal Access**: Not part of the official group? No problem. You can join as a **Public User** to track your own progress privately while core members follow the group-wide curriculum.
 
 ---
@@ -46,8 +44,7 @@ StormTracker is driven by a hybrid intelligence model:
 StormTracker utilizes a Tier-1 production-grade system prompt designed to tightly control the ReAct Agent's autonomous behavior:
 - **Negative Prompting (Behavioral Fences)**: Explicit constraints prevent the classic "overly-hyped chatbot" syndrome, forcing the agent to act as a strict, professional musical mentor.
 - **Cognitive Memory Protocols**: Strict logical boundaries separate the use of qualitative contextual memory (RAG) from quantitative data fetching (Database Analytics), completely eliminating data hallucination.
-- **Onboarding & Role Gatekeeper**: A sophisticated state-machine hardcoded into the prompt ensures users are correctly categorized (New -> Pending -> Member/Public) before being allowed to interact with core tools.
-- **Immutable RBAC**: Role-Based Access Control is hardcoded directly into the prompt via Markdown tables, which the LLM parses natively to prevent privilege escalation attacks.
+- **Prompt-Enforced RBAC & Gatekeeping**: Role-Based Access Control and a strict onboarding state-machine (New -> Pending -> Member/Public) are hardcoded directly into the prompt via Markdown tables. The LLM parses this natively, preventing unauthorized access to core tools and eliminating privilege escalation attacks.
 - **Recency Bias Optimization**: Highly dynamic data arrays (like active memory facts and system status) are injected at the absolute bottom of the prompt to maximize the LLM's attention mechanism right before token generation.
 
 ### Cognitive Memory Efficiency (5-Tier Architecture)
@@ -69,7 +66,7 @@ The ingress layer is built to handle the chaotic nature of real-world file uploa
 StormTracker bridges the gap between AI autonomy and human oversight:
 - **Asynchronous Verification**: When new students request to join the private group, the agent automatically notifies **Root Admins** via Telegram.
 - **Direct Resolution**: Admins can approve or reject these requests with a single message (e.g., *"Approve 12345"*). The agent then re-configures the user's role and notifies them of the decision instantly.
-- **Proactive Outreach**: Admins can use the bot as a secure relay to send direct messages or group-wide broadcasts. These messages are injected into the users' conversational memory, ensuring the AI agent remains fully aware of human-led directives.
+- **Memory-Injected Broadcasts**: When administrators send group-wide announcements or direct messages through the system, the text is securely relayed and injected directly into the users' active conversation memory. This ensures the AI agent remains fully aware of human-led directives during future interactions.
 
 ### Security & Anti-Fraud
 Ensuring data integrity is paramount, especially when grading group assignments:
@@ -80,9 +77,14 @@ Ensuring data integrity is paramount, especially when grading group assignments:
 - **Prompt Isolation**: Background memory synthesis tasks are hardened against prompt injection attacks using strict **XML-based prompt isolation**.
 - **Safe Rich-Text Egress**: A dedicated **Markdown-to-HTML Translation Layer** sanitizes and formats all outgoing messages. This ensures that dynamic code blocks, links, and bold text never cause Telegram API parsing crashes.
 
+### Legal Compliance & Data Privacy
+Protecting user data and ensuring regulatory compliance is handled natively at the ingress layer:
+- **Explicit Consent Gateway**: Before any data processing or LLM inference can occur, new users are intercepted at the webhook level and presented with a Telegram Inline Keyboard to explicitly accept the Privacy Policy and Terms of Use.
+- **Auditable Consent Logs**: Agreement status and timestamps are persistently stored in the PostgreSQL database (`has_consented`, `consented_at`), ensuring full traceability and legal protection for system administrators.
+- **Static Asset Delivery**: Legal documents (PDF policies) are securely served via the Caddy web server, completely decoupled from the application logic for fast and reliable access.
+
 ### Advanced Resilience & Scheduling
 StormTracker operates independently and must be fault-tolerant:
-- **Cold-Start Persistence**: By leveraging PostgreSQL as the source of truth for both raw messages and rolling summaries, the system is immune to Redis volatility. Conversation context is restored automatically on the first message following a cache clearance.
 - **Out-of-Band Memory Synchronization**: When the bot sends automated nudges, these actions are injected out-of-band directly into the persistent conversation timeline. The AI agent retains full context of its own automated reminders.
 - **Fault-Tolerant Async Scheduler**: Proactive tasks are driven by APScheduler, utilizing Redis-backed locking to ensure background jobs (like midnight reports) execute flawlessly even in multi-instance or crashing scenarios.
 - **Exponential Backoff**: Critical external API calls (e.g., OpenRouter embeddings) are protected by `tenacity` retry logic with exponential backoff to gracefully handle HTTP 429 rate limits.

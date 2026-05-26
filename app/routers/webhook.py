@@ -32,15 +32,26 @@ async def telegram_webhook(
     update: TelegramUpdate,
     background_tasks: BackgroundTasks,
 ) -> dict:
-    if not update.message:
-        return {"status": "ok"}
+    if not update.message and not update.callback_query:
+        return {"status": "ignored"}
 
-    message = update.message
-    chat_id = message.chat.id
-    telegram_id = message.from_.id
-    username = message.from_.username
-
-    user_text = message.text or message.caption or "Uploaded an image."
+    is_callback = update.callback_query is not None
+    chat_id = (
+        update.callback_query.message.chat.id if is_callback else update.message.chat.id
+    )
+    telegram_id = (
+        update.callback_query.from_.id if is_callback else update.message.from_.id
+    )
+    username = (
+        update.callback_query.from_.username
+        if is_callback
+        else update.message.from_.username
+    )
+    message_id = (
+        update.callback_query.message.message_id
+        if is_callback
+        else update.message.message_id
+    )
 
     async with async_session_maker() as session:
         profile = await profile_service.get_or_create_profile(
@@ -50,7 +61,76 @@ async def telegram_webhook(
         role = profile["role"]
         is_onboarded = profile["is_onboarded"]
         full_name = profile["full_name"]
+        has_consented = profile.get("has_consented", False)
 
+    if not has_consented:
+        if is_callback:
+            query_id = update.callback_query.id
+            data = update.callback_query.data
+
+            if data == "consent_agree":
+                async with async_session_maker() as session:
+                    await profile_service.update_consent(session, telegram_id, True)
+
+                await telegram_service.answer_callback_query(query_id)
+                await telegram_service.edit_message_text(
+                    chat_id,
+                    message_id,
+                    "**Thank you!** You have accepted the Privacy Policy and "
+                    "Terms of Use.\n\nWelcome to StormTracker! Say 'Hello' to "
+                    "begin your onboarding.",
+                )
+                return {"status": "consented"}
+
+            elif data == "consent_disagree":
+                await telegram_service.answer_callback_query(query_id)
+                await telegram_service.edit_message_text(
+                    chat_id,
+                    message_id,
+                    "**Access Denied.**\n\nYou must agree to the Privacy Policy "
+                    "and Terms of Use to use this system. If you change your mind, "
+                    "send any message to review the terms again.",
+                )
+                return {"status": "denied"}
+
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "📄 Privacy Policy",
+                        "url": f"https://{get_settings().DOMAIN_NAME}/legal/Privacy_Policy.pdf",
+                    },
+                    {
+                        "text": "📄 Terms of Use",
+                        "url": f"https://{get_settings().DOMAIN_NAME}/legal/Terms_of_Use.pdf",
+                    },
+                ],
+                [
+                    {"text": "I Agree", "callback_data": "consent_agree"},
+                    {"text": "I Disagree", "callback_data": "consent_disagree"},
+                ],
+            ]
+        }
+
+        contract_text = (
+            "⚖️ **Legal Agreement Required**\n\n"
+            "To use StormTracker, we must process your personal data (name, "
+            "Telegram ID, and submitted screenshots) "
+            "to track your performance and generate group analytics.\n\n"
+            "Please review our complete Privacy Policy and Terms of Use below. "
+            "You must explicitly agree to these terms to continue."
+        )
+
+        background_tasks.add_task(
+            telegram_service.send_message, chat_id, contract_text, keyboard
+        )
+        return {"status": "awaiting_consent"}
+
+    if is_callback:
+        await telegram_service.answer_callback_query(update.callback_query.id)
+        return {"status": "ignored_callback"}
+
+    message = update.message
     if not await check_rate_limit(chat_id, role):
         await telegram_service.send_message(
             chat_id=chat_id,
@@ -60,6 +140,8 @@ async def telegram_webhook(
             ),
         )
         return {"status": "rate_limited"}
+
+    user_text = message.text or message.caption or "Uploaded an image."
 
     image_base64 = None
     file_id = None

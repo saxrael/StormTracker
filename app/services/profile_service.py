@@ -1,3 +1,6 @@
+import datetime
+
+import pytz
 from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +33,21 @@ async def get_or_create_profile(
         "full_name": user.full_name,
         "is_onboarded": is_onboarded,
         "conversation_summary": user.conversation_summary,
+        "has_consented": getattr(user, "has_consented", False),
     }
+
+
+async def update_consent(
+    session: AsyncSession, telegram_id: int, consented: bool
+) -> None:
+    tz = pytz.timezone("Africa/Lagos")
+    timestamp = datetime.datetime.now(tz) if consented else None
+    await session.execute(
+        update(User)
+        .where(User.telegram_id == telegram_id)
+        .values(has_consented=consented, consented_at=timestamp)
+    )
+    await session.commit()
 
 
 async def update_full_name(

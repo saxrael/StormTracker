@@ -1,3 +1,10 @@
 {$DOMAIN_NAME:localhost} {
-    reverse_proxy app:8000
+    handle_path /legal/* {
+        root * /srv/legal
+        file_server
+    }
+    
+    handle /* {
+        reverse_proxy app:8000
+    }
 }
