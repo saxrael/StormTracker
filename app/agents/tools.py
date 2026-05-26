@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from app.agents.llm_setup import get_image_embedding
 from app.config import get_settings
 from app.models.models import Metric, Submission, User
-from app.services import conversation_service
+from app.services import conversation_service, profile_service
 from app.services.database import async_session, redis_client
 from app.services.report_service import (
     get_defaulters_in_range,
@@ -390,3 +390,13 @@ async def broadcast_to_members(
         f"Broadcast complete. Sent to {success_count} members. "
         f"Failed to reach {fail_count} members."
     )
+
+
+@tool
+async def update_profile(
+    full_name: str, *, telegram_id: Annotated[int, InjectedToolArg]
+) -> str:
+    """Update an existing user's real full name in their profile."""
+    async with async_session() as session:
+        await profile_service.update_full_name(session, telegram_id, full_name)
+    return f"Profile updated successfully. Name is now set to {full_name}."

@@ -20,6 +20,7 @@ from app.agents.tools import (
     query_analytics,
     resolve_verification,
     submit_for_verification,
+    update_profile,
     visual_search,
 )
 from app.config import get_settings
@@ -60,6 +61,7 @@ _TOOL_REGISTRY = {
     "create_invite_token": create_invite_token,
     "message_member": message_member,
     "broadcast_to_members": broadcast_to_members,
+    "update_profile": update_profile,
 }
 
 
@@ -78,6 +80,7 @@ async def reasoning_core(state: AgentState) -> dict:
             create_invite_token,
             message_member,
             broadcast_to_members,
+            update_profile,
         ]
     )
     system_prompt = get_formatted_system_prompt(
@@ -267,7 +270,11 @@ async def tool_executor(state: AgentState) -> dict:
                     tool_args["admin_name"] = state.get("full_name") or "Admin"
                 if name == "visual_search":
                     tool_args["image_base64"] = state.get("image_base64")
-                if name in ["submit_for_verification", "onboard_public_user"]:
+                if name in [
+                    "submit_for_verification",
+                    "onboard_public_user",
+                    "update_profile",
+                ]:
                     tool_args["telegram_id"] = state["user_id"]
                     if name == "submit_for_verification":
                         tool_args["username"] = state.get("username")

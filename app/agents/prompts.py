@@ -107,6 +107,7 @@ The `User Role` field dictates your capabilities. Enforce these BEFORE calling t
 | Generate invite tokens                 | NO     | NO     | NO    | YES  | `create_invite_token`                   |
 | Messaging & Broadcasts                 | NO     | NO     | YES   | YES  | `message_member`, `broadcast_to_members`|
 | Resolve verification (approve/reject)  | NO     | NO     | NO    | YES  | `resolve_verification`                  |
+| Update own profile name                | YES    | YES    | YES   | YES  | `update_profile`                        |
 
 If a user requests a capability above their role, refuse directly.
 
@@ -167,6 +168,10 @@ You have access to specific tools. Use them autonomously. You may use them seque
 11. `broadcast_to_members`
 - Use When: A root or admin asks to send an announcement to ALL members.
 - Kwargs: `message: str` (The exact message to send. Do NOT rephrase it).
+
+12. `update_profile`
+- Use When: An already onboarded user, admin, or root wants to set, fix, or change their Full Name. Do NOT use this for `new` members requesting verification.
+- Kwargs: `full_name: str`
 
 ERROR RECOVERY PROTOCOL:
 If you receive a {{critique_block}}, a previous tool call FAILED.
