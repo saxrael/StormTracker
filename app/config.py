@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     TELEGRAM_SECRET_TOKEN: str
     TELEGRAM_BOT_TOKEN: str
     WEBHOOK_URL: str
+    DOMAIN_NAME: str
 
     GOOGLE_AI_API_KEY: str
     OPENROUTER_API_KEY: str

@@ -5,10 +5,17 @@ import re
 
 import httpx
 from fastapi import HTTPException
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import get_settings
 
 _client: httpx.AsyncClient | None = None
+
+_RETRY_POLICY = {
+    "stop": stop_after_attempt(3),
+    "wait": wait_exponential(multiplier=0.5, min=0.5, max=2),
+    "reraise": True,
+}
 
 
 def startup_telegram_client():
@@ -51,6 +58,7 @@ class TelegramService:
         )
         self.client = _client or httpx.AsyncClient(timeout=30.0)
 
+    @retry(**_RETRY_POLICY)
     async def send_message(
         self, chat_id: int, text: str, reply_markup: dict | None = None
     ) -> None:
@@ -68,6 +76,7 @@ class TelegramService:
         )
         response.raise_for_status()
 
+    @retry(**_RETRY_POLICY)
     async def edit_message_text(
         self, chat_id: int, message_id: int, text: str, reply_markup: dict | None = None
     ) -> None:
@@ -85,6 +94,7 @@ class TelegramService:
         )
         response.raise_for_status()
 
+    @retry(**_RETRY_POLICY)
     async def answer_callback_query(
         self, callback_query_id: str, text: str = "", show_alert: bool = False
     ) -> None:
@@ -98,6 +108,7 @@ class TelegramService:
         )
         response.raise_for_status()
 
+    @retry(**_RETRY_POLICY)
     async def get_file_path(self, file_id: str) -> str:
         response = await self.client.get(
             f"{self.base_url}/getFile", params={"file_id": file_id}
@@ -110,11 +121,13 @@ class TelegramService:
             )
         return data["result"]["file_path"]
 
+    @retry(**_RETRY_POLICY)
     async def download_image_as_base64(self, file_path: str) -> str:
         response = await self.client.get(f"{self.file_url}/{file_path}")
         response.raise_for_status()
         return base64.b64encode(response.content).decode("utf-8")
 
+    @retry(**_RETRY_POLICY)
     async def send_document(self, chat_id: int, document_path: str, caption: str = ""):
         safe_caption = _markdown_to_html(caption)
         with open(document_path, "rb") as file_obj:
