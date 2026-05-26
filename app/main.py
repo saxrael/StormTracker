@@ -24,7 +24,7 @@ async def _register_telegram_webhook(client: httpx.AsyncClient) -> None:
     payload = {
         "url": settings.WEBHOOK_URL,
         "secret_token": settings.TELEGRAM_SECRET_TOKEN,
-        "allowed_updates": ["message"],
+        "allowed_updates": ["message", "callback_query"],
     }
     try:
         response = await client.post(url, json=payload)
