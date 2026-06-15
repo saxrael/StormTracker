@@ -10,7 +10,7 @@ from app.config import get_settings
 def get_gemma_llm() -> ChatGoogleGenerativeAI:
     settings = get_settings()
     return ChatGoogleGenerativeAI(
-        model="gemma-4-31b-it",
+        model="gemma-4-26b-a4b-it",
         temperature=0.25,
         api_key=settings.GOOGLE_AI_API_KEY,
         model_kwargs={"thinking_config": {"thoughts": True}},

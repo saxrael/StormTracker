@@ -37,7 +37,7 @@ This section details the advanced engineering, security layers, and architectura
 
 ### Core Intelligence & Routing
 StormTracker is driven by a hybrid intelligence model:
-- **Primary Engine**: The core conversational and analytical tasks are powered by `Gemma 4 31B`, ensuring fast and highly capable intent recognition and tool execution.
+- **Primary Engine**: The core conversational and analytical tasks are powered by `Gemma 4 26B-A4B-it`, ensuring fast and highly capable intent recognition and tool execution.
 - **Dynamic Routing & Reasoning**: The system leverages an OpenRouter integration to dynamically route complex background tasks (such as cognitive fact extraction and long-term memory synthesis) to specialized reasoning models. 
 
 ### Advanced Prompt Engineering & Agent Control
