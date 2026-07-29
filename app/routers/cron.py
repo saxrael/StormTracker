@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from datetime import datetime
@@ -6,7 +7,8 @@ import pytz
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 
 from app.config import get_settings
-from app.services.database import async_session
+from app.services import conversation_service
+from app.services.database import async_session, redis_client
 from app.services.pdf_service import generate_pdf_report
 from app.services.report_service import (
     get_admin_ids,
@@ -37,6 +39,13 @@ async def _nudge_defaulters(message: str) -> None:
     for user in defaulters:
         try:
             await telegram_service.send_message(user["telegram_id"], message)
+            await conversation_service.persist_turn(
+                telegram_id=user["telegram_id"],
+                user_text=None,
+                ai_text=message,
+                session_factory=async_session,
+                redis_client=redis_client,
+            )
         except Exception:
             logger.exception("Failed to nudge user %s", user["telegram_id"])
 
@@ -49,7 +58,9 @@ async def _broadcast_midnight_report() -> None:
         defaulters = await get_defaulters(session, target_date)
         admin_ids = await get_admin_ids(session)
 
-    pdf_path = generate_pdf_report(submissions, defaulters, target_date)
+    pdf_path = await asyncio.to_thread(
+        generate_pdf_report, submissions, defaulters, target_date
+    )
 
     for admin_id in admin_ids:
         try:

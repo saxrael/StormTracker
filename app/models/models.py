@@ -1,8 +1,17 @@
 import uuid
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, Float, ForeignKey, Integer, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import (
+    BigInteger,
+    Computed,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    Text,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime, String
 
@@ -134,6 +143,9 @@ class ChatMessage(Base):
 
 class UserMemoryFact(Base):
     __tablename__ = "user_memory_facts"
+    __table_args__ = (
+        Index("ix_memory_tsvector", "search_tsvector", postgresql_using="gin"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -143,8 +155,35 @@ class UserMemoryFact(Base):
     )
     fact_text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding = mapped_column(Vector(2048))
+    search_tsvector = mapped_column(
+        TSVECTOR, Computed("to_tsvector('english', fact_text)", persisted=True)
+    )
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
     user: Mapped["User"] = relationship(back_populates="memory_facts")
+
+
+class ChatHistoryChunk(Base):
+    __tablename__ = "chat_history_chunks"
+    __table_args__ = (
+        Index("ix_chat_chunk_tsvector", "search_tsvector", postgresql_using="gin"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding = mapped_column(Vector(2048))
+    search_tsvector = mapped_column(
+        TSVECTOR, Computed("to_tsvector('english', chunk_text)", persisted=True)
+    )
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    user: Mapped["User"] = relationship()

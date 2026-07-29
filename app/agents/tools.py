@@ -7,7 +7,7 @@ import pytz
 from langchain_core.tools import InjectedToolArg, tool
 from sqlalchemy import func, select
 
-from app.agents.llm_setup import get_image_embedding
+from app.agents.llm_setup import get_image_embedding, get_text_embedding
 from app.config import get_settings
 from app.models.models import Metric, Submission, User
 from app.services import conversation_service, profile_service
@@ -17,6 +17,7 @@ from app.services.report_service import (
     get_submissions_in_range,
 )
 from app.services.telegram_service import telegram_service
+from app.services.vector_service import hybrid_search_chat_history
 from app.utils import security
 from app.utils.formatters import generate_text_ledger
 
@@ -400,3 +401,44 @@ async def update_profile(
     async with async_session() as session:
         await profile_service.update_full_name(session, telegram_id, full_name)
     return f"Profile updated successfully. Name is now set to {full_name}."
+
+
+@tool
+async def search_past_conversations(
+    queries: list[str], *, db_user_id: Annotated[str, InjectedToolArg]
+) -> str:
+    """Search the user's permanent chat history for specific past conversations,
+    instructions, or context."""
+    if not queries:
+        return "Error: No search queries provided."
+
+    tasks = [get_text_embedding(q) for q in queries]
+    try:
+        embeddings = await asyncio.gather(*tasks)
+    except Exception as e:
+        return f"Error generating embeddings: {e}"
+
+    search_tasks = [
+        hybrid_search_chat_history(db_user_id, q, emb)
+        for q, emb in zip(queries, embeddings)
+    ]
+    results_lists = await asyncio.gather(*search_tasks)
+
+    unique_chunks = {}
+    for res_list in results_lists:
+        for item in res_list:
+            cid = item["chunk_id"]
+            if item["score"] < 0.015:
+                continue
+            if cid not in unique_chunks or item["score"] > unique_chunks[cid]["score"]:
+                unique_chunks[cid] = item
+
+    sorted_chunks = sorted(
+        unique_chunks.values(), key=lambda x: x["score"], reverse=True
+    )[:5]
+
+    if not sorted_chunks:
+        return "No relevant historical conversations found."
+
+    formatted_context = "\n---\n".join([c["text"] for c in sorted_chunks])
+    return f"Retrieved Historical Context:\n{formatted_context}"

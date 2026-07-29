@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app.config import get_settings
 from app.routers import cron, webhook
@@ -41,6 +42,8 @@ async def _register_telegram_webhook(client: httpx.AsyncClient) -> None:
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
     startup_telegram_client()
     application.state.http_client = httpx.AsyncClient(timeout=30.0)
     await _register_telegram_webhook(application.state.http_client)

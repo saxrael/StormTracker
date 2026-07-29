@@ -19,6 +19,7 @@ from app.agents.tools import (
     onboard_public_user,
     query_analytics,
     resolve_verification,
+    search_past_conversations,
     submit_for_verification,
     update_profile,
     visual_search,
@@ -62,6 +63,7 @@ _TOOL_REGISTRY = {
     "message_member": message_member,
     "broadcast_to_members": broadcast_to_members,
     "update_profile": update_profile,
+    "search_past_conversations": search_past_conversations,
 }
 
 
@@ -81,6 +83,7 @@ async def reasoning_core(state: AgentState) -> dict:
             message_member,
             broadcast_to_members,
             update_profile,
+            search_past_conversations,
         ]
     )
     system_prompt = get_formatted_system_prompt(
@@ -256,6 +259,7 @@ async def tool_executor(state: AgentState) -> dict:
                 if name in [
                     "query_analytics",
                     "authenticate_user",
+                    "search_past_conversations",
                 ]:
                     tool_args["db_user_id"] = state["db_user_id"]
                 if name in [

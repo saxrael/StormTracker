@@ -141,7 +141,30 @@ async def telegram_webhook(
         )
         return {"status": "rate_limited"}
 
-    user_text = message.text or message.caption or "Uploaded an image."
+    raw_user_text = message.text or message.caption or "Uploaded an image."
+    user_text = raw_user_text
+
+    facts = []
+    filler_words = {
+        "ok",
+        "yes",
+        "no",
+        "thanks",
+        "thank you",
+        "hello",
+        "hi",
+        "hey",
+        "cool",
+        "done",
+        "uploaded an image.",
+        "uploaded an image",
+    }
+    if raw_user_text and raw_user_text.strip().lower() not in filler_words:
+        query_emb = await get_text_embedding(raw_user_text)
+        async with async_session_maker() as session:
+            facts = await cognitive_service.retrieve_relevant_facts(
+                session, db_user_id, query_emb
+            )
 
     image_base64 = None
     file_id = None
@@ -192,26 +215,6 @@ async def telegram_webhook(
         telegram_id, async_session_maker, redis_client
     )
     summary = profile.get("conversation_summary")
-
-    facts = []
-    filler_words = {
-        "ok",
-        "yes",
-        "no",
-        "thanks",
-        "thank you",
-        "hello",
-        "hi",
-        "hey",
-        "cool",
-        "done",
-    }
-    if user_text and user_text.strip().lower() not in filler_words:
-        query_emb = await get_text_embedding(user_text)
-        async with async_session_maker() as session:
-            facts = await cognitive_service.retrieve_relevant_facts(
-                session, db_user_id, query_emb
-            )
 
     msg_content = [{"type": "text", "text": user_text}]
     if image_base64:
