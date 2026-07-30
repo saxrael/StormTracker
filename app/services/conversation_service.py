@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 HISTORY_KEY_TEMPLATE = "chat:history:{}"
 HISTORY_TTL = 172800
-MAX_HISTORY_LENGTH = 20
-DB_FALLBACK_LIMIT = 20
+MAX_HISTORY_LENGTH = 50
+DB_FALLBACK_LIMIT = 50
 
 
 async def get_history(telegram_id: int, session_factory, redis_client) -> list:

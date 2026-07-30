@@ -133,13 +133,18 @@ async def retrieve_relevant_facts(
     wait=wait_exponential(multiplier=2, min=4, max=30),
     reraise=True,
 )
-async def _llm_call(client, model, messages, temperature: float):
-    return await client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-        extra_body={"reasoning": {"enabled": True}},
-    )
+async def _llm_call(
+    client, model, messages, temperature: float, max_tokens: int | None = None
+):
+    kwargs = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "extra_body": {"reasoning": {"enabled": True}},
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    return await client.chat.completions.create(**kwargs)
 
 
 @observe(name="Cognitive Memory Processing")
@@ -175,7 +180,7 @@ async def process_cognitive_memory(
                         "You are a background memory processor. Your job is to "
                         "update an existing conversation summary with new messages. "
                         "Keep the summary concise, chronological, and strictly "
-                        "under 250 words. Focus on the current narrative and "
+                        "under 500 words. Focus on the current narrative and "
                         "momentum (what is happening NOW and current struggles). "
                         "Do NOT include permanent milestones or hard facts (like "
                         "dates or scores) that are better suited for long-term "
@@ -193,6 +198,7 @@ async def process_cognitive_memory(
                 },
             ],
             temperature=0.2,
+            max_tokens=875,
         )
         new_summary = summary_response.choices[0].message.content
 
