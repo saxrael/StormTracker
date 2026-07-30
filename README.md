@@ -2,7 +2,7 @@
 
 StormTracker is a Telegram-native, AI-powered assistant designed to automate the tracking, grading, and reporting of daily ear-training assignments for music groups.
 
-> 🤖 **Live Agent**: StormTracker is live on Telegram! Chat with the assistant directly at [@MightyStormBot](https://t.me/MightyStormBot) (`https://t.me/MightyStormBot`).
+> 🤖 **Live Bot**: StormTracker is live on Telegram! Chat with the assistant directly at [@MightyStormBot](https://t.me/MightyStormBot) (`https://t.me/MightyStormBot`).
 
 > **Origins**: This project was originally built for **Mighty Storm**, a dedicated music group within the **Fellowship of Christian Students (FCS) at Ahmadu Bello University (ABU), Samaru, Zaria, Kaduna State, Nigeria**, to help members stay accountable in their daily musical development.
 
@@ -55,7 +55,7 @@ StormTracker utilizes a production-grade system prompt designed to control the R
 
 ### 🧠 Cognitive Memory Architecture (4-Tier Hybrid System)
 
-To support continuous context without amnesia while keeping API costs low, StormTracker implements a **4-Tier Cognitive Memory System** distributed across Redis and PostgreSQL:
+To support continuous context without amnesia while keeping API costs low, StormTracker implements a **4-Tier Cognitive Memory System** distributed across Redis and PostgreSQL (Supabase):
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -105,9 +105,20 @@ To support continuous context without amnesia while keeping API costs low, Storm
 
 ---
 
+### Cloud Infrastructure & Supabase Decoupling Architecture
+
+StormTracker's production topology utilizes a **Decoupled Managed Cloud Infrastructure**:
+- **Managed Database Layer (Supabase)**: The database is fully offloaded to a managed cloud PostgreSQL instance running `pgvector` and `TSVector` capabilities. This eliminates RAM pressure on single-node deployment hosts, guarantees zero-downtime connection pooling (`asyncpg`), and delegates hardware backups to Supabase.
+- **Clean Lifespan Decoupling**: Database extensions (`vector`) are managed directly via cloud dashboard privileges, removing programmatic `CREATE EXTENSION` startup locks to comply with managed cloud permission models.
+- **Lightweight Micro-Services Container Stack (`docker-compose.prod.yml`)**:
+  - `app`: FastAPI application server running Uvicorn workers.
+  - `redis`: Ultra-fast in-memory cache for working memory sliding windows, mutex locks, and rate limits.
+  - `caddy`: Production reverse proxy providing automatic Let's Encrypt SSL certificates.
+
+---
+
 ### Security, Anti-Cheat & Asynchronous Data Safety
 
-- **Native Boot-Time Extension Loading**: On FastAPI startup (`lifespan` in `app/main.py`), PostgreSQL runs `CREATE EXTENSION IF NOT EXISTS vector;` natively via `engine.begin()`.
 - **Redis LTRIM Async Data Safety**: To prevent data erasure when users send messages during background summarization/embedding runs, `process_cognitive_memory` executes `await redis_client.ltrim(overflow_key, len(evicted_messages), -1)`, removing only the processed batch while safely preserving incoming turns.
 - **Cross-User Anti-Cheat System**: `fraud_service.py` scans `Metric.image_vector` and `Metric.device_metadata` nonces (status bar time + battery percentage) across the **entire database (all users)**, blocking cross-user screenshot sharing within 24-hour windows.
 - **Argon2id Async Passkey Hashing**: All invite tokens use prefix-based `prefix-secret` keys in Redis ($O(1)$ lookup) and Argon2id hashing offloaded to `asyncio.to_thread`.
@@ -124,6 +135,7 @@ To support continuous context without amnesia while keeping API costs low, Storm
 ### Observability & Resilience
 - **Langfuse Tracing**: Complete observability over LangGraph node execution, OpenRouter tool bindings, and background cognitive processing.
 - **APScheduler & Out-of-Band Persistence**: Nudge reminders and midnight reports execute out-of-band while persisting system turns into user memory timelines via `persist_turn`.
+- **Automated CI/CD Pipeline**: GitHub Actions (`deploy.yml`) builds container images, performs linting checks, deploys container services to production hosts, and runs async database schema migrations (`alembic upgrade head`) directly against Supabase.
 
 ---
 
@@ -132,6 +144,7 @@ To support continuous context without amnesia while keeping API costs low, Storm
 ### Prerequisites
 * Telegram Bot Token (via [@BotFather](https://t.me/botfather))
 * API Keys for OpenRouter (Embeddings & Reasoning Models), Google AI Studio, and Langfuse (optional).
+* Supabase PostgreSQL Database URI (`DATABASE_URL`).
 * Docker & Docker Compose installed.
 
 ### Quick Start
@@ -141,7 +154,7 @@ To support continuous context without amnesia while keeping API costs low, Storm
    cd stormtracker
    ```
 2. **Configure your environment:**
-   Copy `.env.example` to `.env` and fill in required keys.
+   Copy `.env.example` to `.env` and fill in required keys (including your Supabase `DATABASE_URL`).
 3. **Deploy:**
    ```bash
    docker compose -f docker-compose.prod.yml up -d --build

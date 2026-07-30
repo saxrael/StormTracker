@@ -66,5 +66,4 @@ jobs:
             IMAGE_SIMILARITY_THRESHOLD=${{ secrets.IMAGE_SIMILARITY_THRESHOLD }}
             EOF
             docker compose -f docker-compose.prod.yml up -d --build
-            docker compose -f docker-compose.prod.yml exec -T db psql -U ${{ secrets.POSTGRES_USER }} -d ${{ secrets.POSTGRES_DB }} -c "CREATE EXTENSION IF NOT EXISTS vector;"
             docker compose -f docker-compose.prod.yml exec -T app alembic upgrade head
