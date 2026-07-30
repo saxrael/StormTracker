@@ -2,6 +2,8 @@
 
 StormTracker is a Telegram-native, AI-powered assistant designed to automate the tracking, grading, and reporting of daily ear-training assignments for music groups.
 
+> 🤖 **Live Agent**: StormTracker is live on Telegram! Chat with the assistant directly at [@MightyStormBot](https://t.me/MightyStormBot) (`https://t.me/MightyStormBot`).
+
 > **Origins**: This project was originally built for **Mighty Storm**, a dedicated music group within the **Fellowship of Christian Students (FCS) at Ahmadu Bello University (ABU), Samaru, Zaria, Kaduna State, Nigeria**, to help members stay accountable in their daily musical development.
 
 ---
@@ -14,111 +16,139 @@ Tracking daily submissions via direct messaging creates a cluttered inbox, waste
 
 ### Not Just a Bot, but a True AI Agent
 StormTracker is not a rigid, amnesiac script. It is built as a **ReAct (Reason + Act) AI Agent**, meaning it behaves like a human manager:
-- **It Remembers You**: It maintains an ongoing understanding of your past conversations and tracks your performance over time. 
-- **It Thinks Before Acting**: When you ask a question, it pauses to *reason* about what you need, decides whether to check the database or just chat naturally, and then responds.
-- **It Takes Initiative**: It doesn't just wait for you to text it. It manages its own schedule to ensure everyone stays on track.
+- **It Remembers You**: It maintains a deep, 4-tiered memory system spanning active context (50 turns), narrative summaries (500 words), permanent knowledge graphs, and a hybrid RRF historical archive.
+- **It Thinks Before Acting**: When you ask a question, it pauses to *reason* about what you need using a strict Think-Plan-Tool-Speak protocol, deciding whether to check analytics, search past conversations via hybrid RAG, or chat naturally.
+- **It Takes Initiative**: It doesn't just wait for you to text it. It manages its own schedule to send reminders, generate midnight reports, and maintain long-term memory background workers.
 
 ### 🎯 Key Benefits & Features
 
-*   **Effortless Image Processing**: Send a screenshot of your daily exercise (e.g., from TonedEar). The AI instantly reads the image, grades it, and logs your score.
-*   **Proactive Reminders (Nudges)**: If you forget to submit your assignment, the bot will send you friendly direct messages at 9:00 AM and 8:00 PM to keep you accountable.
-*   **Zero Cheating**: Trying to send the same screenshot twice? The system instantly recognizes duplicate images and rejects them, ensuring complete fairness across the group.
-*   **Automated PDF Reports**: At midnight, StormTracker generates a beautiful, detailed PDF report containing group averages, visual bar charts, and a list of missing submissions, delivering it directly to administrators.
-*   **Chat with your Data & On-Demand Reporting**: Ask naturally, *"How is John doing on Chords this week?"* or *"What is my average score?"*, and the AI will analyze the data and provide instant answers. Administrators can also request real-time text-ledger summaries of submissions and defaulters (e.g., *"Who hasn't submitted today?"*).
-*   **Direct Admin Communication**: Administrators can send one-on-one messages or group-wide broadcasts directly through the bot, ensuring important announcements never get lost in the chat noise.
-*   **Autonomous Profile Management**: Users can dynamically update their personal information (such as correcting their full name) at any time through natural conversation, without needing administrative intervention.
-*   **Universal Access**: Not part of the official group? No problem. You can join as a **Public User** to track your own progress privately while core members follow the group-wide curriculum.
+*   **Effortless Image Processing**: Send a screenshot of your daily exercise (e.g., from TonedEar). The AI instantly reads the image, grades it, extracts device nonces, and logs your score.
+*   **Deep Active Context (50 Turns)**: The agent holds up to 50 active dialogue turns in fast working memory, allowing for long, natural conversations without forgetting immediate instructions.
+*   **Hybrid RRF Past Conversation Search**: Ask about previous topics, advice, or instructions (*"What reference song did you suggest for minor 2nds last week?"*), and the agent runs multi-query parallel hybrid searches (dense vector + sparse text search) to retrieve exact historical dialogue.
+*   **Proactive Reminders (Nudges)**: If you forget to submit your assignment, the bot sends friendly direct messages at 9:00 AM and 8:00 PM to keep you accountable.
+*   **Cross-User Anti-Cheat Protection**: The system performs vector similarity and metadata nonces checks across the **entire database (all users)**, instantly rejecting duplicate submissions even if shared across members.
+*   **Automated PDF Reports**: At midnight, StormTracker generates a detailed PDF report containing group averages, visual bar charts, and a list of missing submissions, delivering it directly to administrators.
+*   **Chat with your Data & On-Demand Reporting**: Ask naturally, *"How is John doing on Chords this week?"* or *"What is my average score?"*, and the AI analyzes performance metrics instantly.
+*   **Direct Admin Communication**: Administrators can send direct one-on-one messages or group broadcasts through the bot, automatically injecting notifications into members' persistent memory.
+*   **Autonomous Profile Management**: Users can dynamically update their personal information (such as correcting their full name) at any time through natural conversation.
+*   **Universal Access**: Not part of the official group? Join as a **Public User** to track your progress privately while core members follow the group curriculum.
 
 ---
 
 ## ⚙️ Part 2: Technical Architecture & Innovations
 
-This section details the advanced engineering, security layers, and architectural patterns that power StormTracker for developers and system administrators.
+This section details the advanced engineering, security layers, and memory architecture powering StormTracker.
 
 ### Core Intelligence & Routing
 StormTracker is driven by a hybrid intelligence model:
-- **Primary Engine**: The core conversational and analytical tasks are powered by `Gemma 4 26B-A4B-it`, ensuring fast and highly capable intent recognition and tool execution.
-- **Dynamic Routing & Reasoning**: The system leverages an OpenRouter integration to dynamically route complex background tasks (such as cognitive fact extraction and long-term memory synthesis) to specialized reasoning models. 
+- **Primary Engine**: Core conversational, reasoning, and tool execution tasks are powered by `Gemma 4 26B-A4B-it` / `Gemma 4 31b-it`.
+- **Dynamic Routing & Reasoning**: OpenRouter integrations route background summarization, embedding generation, and fact extraction to dedicated reasoning models.
 
 ### Advanced Prompt Engineering & Agent Control
-StormTracker utilizes a Tier-1 production-grade system prompt designed to tightly control the ReAct Agent's autonomous behavior:
-- **Negative Prompting (Behavioral Fences)**: Explicit constraints prevent the classic "overly-hyped chatbot" syndrome, forcing the agent to act as a strict, professional musical mentor.
-- **Cognitive Memory Protocols**: Strict logical boundaries separate the use of qualitative contextual memory (RAG) from quantitative data fetching (Database Analytics), completely eliminating data hallucination.
-- **Prompt-Enforced RBAC & Gatekeeping**: Role-Based Access Control and a strict onboarding state-machine (New -> Pending -> Member/Public) are hardcoded directly into the prompt via Markdown tables. The LLM parses this natively, preventing unauthorized access to core tools and eliminating privilege escalation attacks.
-- **Recency Bias Optimization**: Highly dynamic data arrays (like active memory facts and system status) are injected at the absolute bottom of the prompt to maximize the LLM's attention mechanism right before token generation.
+StormTracker utilizes a production-grade system prompt designed to control the ReAct Agent's autonomous behavior:
+- **Think-Plan-Tool-Speak Cognitive Protocol**: Enforces step-by-step reasoning before tool calls or user responses.
+- **Strict RAG Tool Prompt Enforcement**: Mandates autonomous invocation of `search_past_conversations` whenever a user asks about past conversations, advice, or prior instructions not present in active memory or facts.
+- **Prompt-Enforced RBAC & Gatekeeping**: Role-Based Access Control and onboarding state machines (New -> Pending -> Member/Public) are enforced natively via prompt rules and execution guards.
+- **Recency Bias Optimization**: Dynamic memory blocks (summary, facts, status) are injected at the absolute bottom of the system prompt to maximize attention mechanism focus right before token generation.
 
-### Cognitive Memory Efficiency (5-Tier Architecture)
-To support continuous context without amnesia while keeping API costs low, the system utilizes a highly optimized **5-Tier Memory Architecture** distributed across Redis and PostgreSQL:
+---
 
-1. **Short-Term Working Memory (Redis)**: The most recent 20 messages are instantly loaded into the LLM's context window for immediate conversational awareness.
-2. **Overflow Buffer (Redis)**: As conversations grow, older messages are evicted from working memory and staged in a temporary buffer. 
-3. **Rolling Summarization (PostgreSQL + Redis)**: Once the buffer hits 20 messages, a background reasoning model condenses them into a dense summary (< 250 words). This summary focuses on **narrative and momentum** (current struggles and immediate intent), leaving hard facts for the RAG layer. It is persistently stored in PostgreSQL to ensure an unbreakable architectural map of the user's progress.
-4. **Semantic Fact Database (Memory RAG Pipeline)**: The system utilizes a continuous **Retrieval-Augmented Generation (RAG)** pipeline for long-term memory. It automatically extracts atomic facts (e.g., names, specific music goals, milestones) from the background buffer. These facts are converted to vector embeddings and dynamically injected into the agent's prompt via Cosine Similarity *before* the AI processes the user's message, ensuring deep context without bloated token counts.
-5. **Memory Integrity (Semantic Deduplication)**: To prevent context clutter, every new fact undergoes a **Cosine Similarity check** against existing memory. If a semantically identical fact exists (Distance < 0.1), the system rejects the duplicate, keeping the agent's long-term memory lean and high-value.
-6. **Immutable Audit Log & Cold-Start Recovery (PostgreSQL)**: Every raw message is permanently stored in a relational database. This serves as the system's **"Ground Truth"**. If the active Redis context expires, the system performs an automatic **Cold-Start Recovery**, pulling the last 20 messages from PostgreSQL to re-warm the active context instantly.
+### 🧠 Cognitive Memory Architecture (4-Tier Hybrid System)
 
-### Robust Vision Accessibility & Multimodality
-The ingress layer is built to handle the chaotic nature of real-world file uploads safely:
-- **Document Safety Gates**: The webhook gracefully processes both compressed photos and raw document uploads, enforcing a strict **5MB payload limit** to prevent memory exhaustion.
-- **Payload Normalization**: Advanced content normalization ensures stable multimodal interactions with OpenRouter schemas, preventing TypeErrors and crashes during complex image processing.
+To support continuous context without amnesia while keeping API costs low, StormTracker implements a **4-Tier Cognitive Memory System** distributed across Redis and PostgreSQL:
 
-### Human-In-The-Loop (HITL) Governance & Outreach
-StormTracker bridges the gap between AI autonomy and human oversight:
-- **Asynchronous Verification**: When new students request to join the private group, the agent automatically notifies **Root Admins** via Telegram.
-- **Direct Resolution**: Admins can approve or reject these requests with a single message (e.g., *"Approve 12345"*). The agent then re-configures the user's role and notifies them of the decision instantly.
-- **Memory-Injected Broadcasts**: When administrators send group-wide announcements or direct messages through the system, the text is securely relayed and injected directly into the users' active conversation memory. This ensures the AI agent remains fully aware of human-led directives during future interactions.
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. WORKING MEMORY (Redis Cache / DB Cold-Start)              │
+│    - Fast sliding window of 50 active dialogue turns       │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ (Eviction via Redis LTRIM)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. EPISODIC NARRATIVE SUMMARY (Gemma 31B Background Loop)   │
+│    - Rolling summary (< 500 words) of narrative & momentum │
+│    - Mathematically calibrated max_tokens = 875             │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────┴──────────────────────────────┐
+│ 3. SEMANTIC KNOWLEDGE GRAPH  │ 4. DEEP HISTORICAL RAG ARCHIVE│
+│    (PGVector Cosine Search) │    (Hybrid Dense + TSVector)  │
+│    - Permanent facts        │    - Role-attributed chunks   │
+│    - Think-Plan-Execute JSON│    - Reciprocal Rank Fusion   │
+│    - UUID hallucination     │    - Multi-query parallel     │
+│      fallback to CREATE     │      search tool              │
+└──────────────────────────────┴──────────────────────────────┘
+```
 
-### Security & Anti-Fraud
-Ensuring data integrity is paramount, especially when grading group assignments:
-- **Argon2id Async Hashing**: All invite tokens and passkeys are hashed using Argon2id. These operations are offloaded to dedicated threads (`asyncio.to_thread`) to ensure the agent's main event loop remains non-blocking and responsive.
-- **Prefix-Based Token Lookups**: To prevent timing attacks and optimize Redis performance, tokens use a `prefix-secret` format, allowing O(1) lookups.
-- **Cosine Distance Vector Comparisons**: The cryptographic anti-fraud system converts every uploaded image into a mathematical vector embedding. It uses Cosine Distance to compare incoming vectors against past submissions, instantly catching visual duplicates even if the image metadata was altered. Additionally, administrators can perform manual checks on any screenshot using the `visual_search` tool to retrieve the top 3 closest matching database records.
-- **Role-Based API Rate Limiting**: To safeguard system resources and control LLM API consumption costs, a Redis-backed rate limiter intercepts incoming webhook updates, enforcing strict request quotas based on user status (e.g., 20 requests/minute for verified members, admins, and roots; 5 requests/minute for guest/unauthenticated users).
-- **Prompt Isolation**: Background memory synthesis tasks are hardened against prompt injection attacks using strict **XML-based prompt isolation**.
-- **Safe Rich-Text Egress**: A dedicated **Markdown-to-HTML Translation Layer** sanitizes and formats all outgoing messages. This ensures that dynamic code blocks, links, and bold text never cause Telegram API parsing crashes.
+#### Tier 1: Working Memory (Sliding Window & Cold-Start Recovery)
+- **Active Window**: Holds up to **50 dialogue turns** in Redis (`chat:history:{telegram_id}`).
+- **Cold-Start Recovery**: If Redis cache expires, the system queries PostgreSQL (`ChatMessage`), pulling the last 50 turns ordered by `created_at DESC` and reversing in-memory to instantly restore chronological context.
 
-### Legal Compliance & Data Privacy
-Protecting user data and ensuring regulatory compliance is handled natively at the ingress layer:
-- **Explicit Consent Gateway**: Before any data processing or LLM inference can occur, new users are intercepted at the webhook level and presented with a Telegram Inline Keyboard to explicitly accept the Privacy Policy and Terms of Use.
-- **Auditable Consent Logs**: Agreement status and timestamps are persistently stored in the PostgreSQL database (`has_consented`, `consented_at`), ensuring full traceability and legal protection for system administrators.
-- **Static Asset Delivery**: Legal documents (PDF policies) are securely served via the Caddy web server, completely decoupled from the application logic for fast and reliable access.
+#### Tier 2: Episodic Narrative Summary (Background Worker)
+- **Buffer & Trigger**: When active history exceeds 50 turns, evicted messages are formatted with speaker role tags (`HUMAN: ...`, `AI: ...`, `SYSTEM: ...`) and appended to `chat:overflow:{telegram_id}`. Once the overflow buffer reaches 20 messages, a background worker (`process_cognitive_memory`) runs under a Redis Mutex (`cognitive_lock:{telegram_id}`).
+- **Narrative Scope**: Updates `User.conversation_summary` to keep a chronological narrative (**strictly under 500 words**) focused on momentum and current struggles.
+- **Mathematical Token Calibration**: `max_tokens` for summary generation is mathematically calculated as:
+  $$\text{Base Tokens} = 500 \text{ words} \times 1.4 \text{ BPE tokens/word} = 700 \text{ tokens}$$
+  $$\text{Max Tokens} = 700 \times 1.25 \text{ (25\% reasoning/safety buffer)} = 875 \text{ tokens}$$
 
-### Advanced Resilience & Scheduling
-StormTracker operates independently and must be fault-tolerant:
-- **Out-of-Band Memory Synchronization**: When the bot sends automated nudges, these actions are injected out-of-band directly into the persistent conversation timeline. The AI agent retains full context of its own automated reminders.
-- **Fault-Tolerant Async Scheduler**: Proactive tasks are driven by APScheduler, utilizing Redis-backed locking to ensure background jobs (like midnight reports) execute flawlessly even in multi-instance or crashing scenarios.
-- **Exponential Backoff**: Critical external API calls (e.g., OpenRouter embeddings) are protected by `tenacity` retry logic with exponential backoff to gracefully handle HTTP 429 rate limits.
+#### Tier 3: Semantic Knowledge Graph (Fact Extraction & Auto-Retrieval)
+- **Think-Plan-Execute Protocol**: Background processing executes Pipeline B using `FACT_EXTRACTOR_PROMPT`. The LLM outputs structured JSON (`think`, `plan`, `action`, `target_existing_fact_id`, `final_fact_text`) to manage permanent facts.
+- **Robust UUID Fallback**: If an LLM returns a hallucinated, non-existent, or invalid UUID during an `UPDATE` action, the system catches `ValueError` and checks `rowcount > 0`, automatically falling back to creating a new `UserMemoryFact` (`CREATE`) to eliminate memory loss.
+- **Auto-Retrieval**: On incoming messages, `retrieve_relevant_facts` generates a text embedding, calculates cosine distance (`distance < 0.75`), and auto-injects top matching permanent facts into system prompt context.
 
-### Observability & Tracing
-- **Langfuse Integration**: The complex graph of asynchronous reasoning, tool execution, and background memory synthesis is continuously traced using Langfuse, providing deep observability into the ReAct agent's decision-making pathways and token usage.
+#### Tier 4: Deep Historical Archive & Hybrid RRF RAG Engine
+- **Role-Attributed Storage**: Evicted message blocks are stored as `ChatHistoryChunk` in PostgreSQL with role attribution, 2048-dim vector embeddings, and GIN-indexed `TSVector` columns (`search_tsvector = Computed("to_tsvector('english', chunk_text)", persisted=True)`).
+- **Reciprocal Rank Fusion (RRF)**: The `vector_service.py` engine executes a single raw SQL query combining dense cosine vector distance (`<=> < 0.75`) and sparse full-text search (`ts_rank` over `search_tsvector`) with rank constant $k=60$:
+  $$\text{RRF Score} = \frac{1}{60 + \text{Dense Rank}} + \frac{1}{60 + \text{Sparse Rank}}$$
+- **Multi-Query Parallel RAG Tool (`search_past_conversations`)**: Generates embeddings and executes hybrid searches in parallel via `asyncio.gather`, deduplicates chunks by peak RRF score, filters low-confidence matches (`score < 0.015`), and surfaces top 5 formatted chunks to the agent.
 
-### 🚀 Getting Started (Self-Hosting)
+---
 
-StormTracker is designed for lean, single-node deployments using Docker.
+### Security, Anti-Cheat & Asynchronous Data Safety
 
-#### Prerequisites
-*   A Telegram Bot Token (via [@BotFather](https://t.me/botfather))
-*   API Keys for Google AI Studio (Gemma 4), OpenRouter (Nemotron Embeddings, Reasoning Models), and Langfuse (optional).
-*   Docker & Docker Compose installed on your host machine.
+- **Native Boot-Time Extension Loading**: On FastAPI startup (`lifespan` in `app/main.py`), PostgreSQL runs `CREATE EXTENSION IF NOT EXISTS vector;` natively via `engine.begin()`.
+- **Redis LTRIM Async Data Safety**: To prevent data erasure when users send messages during background summarization/embedding runs, `process_cognitive_memory` executes `await redis_client.ltrim(overflow_key, len(evicted_messages), -1)`, removing only the processed batch while safely preserving incoming turns.
+- **Cross-User Anti-Cheat System**: `fraud_service.py` scans `Metric.image_vector` and `Metric.device_metadata` nonces (status bar time + battery percentage) across the **entire database (all users)**, blocking cross-user screenshot sharing within 24-hour windows.
+- **Argon2id Async Passkey Hashing**: All invite tokens use prefix-based `prefix-secret` keys in Redis ($O(1)$ lookup) and Argon2id hashing offloaded to `asyncio.to_thread`.
+- **Role-Based Rate Limiting**: Intercepts webhook traffic enforcing request quotas (20 req/min for members/admins; 5 req/min for public users).
 
-#### Quick Start
+---
+
+### Legal Compliance & Static Egress
+- **Inline Consent Gateway**: New users accept Privacy Policy & Terms of Use via Inline Keyboards prior to processing. Agreement logs (`has_consented`, `consented_at`) are saved in PostgreSQL.
+- **Static Asset Mount**: Served securely via Caddy SSL reverse proxy.
+
+---
+
+### Observability & Resilience
+- **Langfuse Tracing**: Complete observability over LangGraph node execution, OpenRouter tool bindings, and background cognitive processing.
+- **APScheduler & Out-of-Band Persistence**: Nudge reminders and midnight reports execute out-of-band while persisting system turns into user memory timelines via `persist_turn`.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+* Telegram Bot Token (via [@BotFather](https://t.me/botfather))
+* API Keys for OpenRouter (Embeddings & Reasoning Models), Google AI Studio, and Langfuse (optional).
+* Docker & Docker Compose installed.
+
+### Quick Start
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/your-org/stormtracker.git
    cd stormtracker
    ```
 2. **Configure your environment:**
-   Copy `.env.example` to `.env` and fill in your required API keys and Domain Name.
+   Copy `.env.example` to `.env` and fill in required keys.
 3. **Deploy:**
    ```bash
    docker compose -f docker-compose.prod.yml up -d --build
    ```
-   *Note: The production compose file utilizes Caddy to automatically provision and renew Let's Encrypt SSL certificates required for Telegram Webhooks.*
 
-#### Security & Access Control
-- **4-Tiered Role System**:
-    - **Root**: System owners who manage verifications, generate tokens, and send broadcasts.
-    - **Admin**: Staff who can message members, run group-wide reports, and analyze data.
-    - **Member**: Verified students whose data is included in group assignments.
-    - **Public**: Guests who use the bot for personal training (data excluded from group reports).
-- **Bootstrapping**: The first root admin is created using a one-time, secure `ROOT_CLAIM_TOKEN`. Once claimed, they can generate single-use invite passkeys for other admins or resolve pending user verifications.
+### Access Control & Roles
+- **Root**: System owners (manage verifications, invite tokens, broadcasts).
+- **Admin**: Staff (message members, run reports, query group analytics).
+- **Member**: Verified group members (data included in group reports).
+- **Public**: Guests (data excluded from group reports).
