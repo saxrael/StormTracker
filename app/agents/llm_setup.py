@@ -13,7 +13,7 @@ def get_gemma_llm() -> ChatGoogleGenerativeAI:
         model="gemma-4-26b-a4b-it",
         temperature=0.25,
         api_key=settings.GOOGLE_AI_API_KEY,
-        model_kwargs={"thinking_config": {"thoughts": True}},
+        thinking_config={"include_thoughts": True},
     )
 
 
