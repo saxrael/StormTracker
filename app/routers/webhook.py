@@ -37,11 +37,16 @@ async def telegram_webhook(
     )
 
     role_bytes = await redis_client.get(f"user_role:{telegram_id}")
-    role = role_bytes.decode("utf-8") if role_bytes else "new"
+    if isinstance(role_bytes, bytes):
+        role = role_bytes.decode("utf-8")
+    else:
+        role = role_bytes if role_bytes else "new"
 
     if not await check_rate_limit(chat_id, role):
         return {"status": "rate_limited"}
 
-    await request.app.state.arq_pool.enqueue_job("process_update", update.model_dump())
+    await request.app.state.arq_pool.enqueue_job(
+        "process_update", update.model_dump(by_alias=True)
+    )
 
     return {"status": "ok"}

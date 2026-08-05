@@ -10,7 +10,11 @@ from app.schemas.telegram_schemas import TelegramUpdate
 from app.services import cognitive_service, conversation_service, profile_service
 from app.services.database import async_session as async_session_maker
 from app.services.database import redis_client
-from app.services.telegram_service import telegram_service
+from app.services.telegram_service import (
+    shutdown_telegram_client,
+    startup_telegram_client,
+    telegram_service,
+)
 from app.state.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -232,8 +236,22 @@ async def process_update(ctx, update_dict: dict):
     return {"status": "ok"}
 
 
+async def startup(ctx):
+    startup_telegram_client()
+    from app.services.telegram_service import _client
+
+    telegram_service.client = _client
+
+
+async def shutdown(ctx):
+    await shutdown_telegram_client()
+
+
 class WorkerSettings:
     functions = [process_update]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
+    on_startup = startup
+    on_shutdown = shutdown
     max_jobs = 2
     job_timeout = 300
+
