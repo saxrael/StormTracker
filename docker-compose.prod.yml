@@ -26,6 +26,19 @@ services:
     networks:
       - internal
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    command: arq app.worker.WorkerSettings
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

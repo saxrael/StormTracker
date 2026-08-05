@@ -3,6 +3,8 @@ import os
 from contextlib import asynccontextmanager
 
 import httpx
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
@@ -45,11 +47,16 @@ async def lifespan(application: FastAPI):
     application.state.http_client = httpx.AsyncClient(timeout=30.0)
     await _register_telegram_webhook(application.state.http_client)
     start_scheduler()
+    _settings = get_settings()
+    application.state.arq_pool = await create_pool(
+        RedisSettings.from_dsn(_settings.REDIS_URL)
+    )
     logger.info("Application startup complete")
     yield
     await shutdown_telegram_client()
     await application.state.http_client.aclose()
     await engine.dispose()
+    await application.state.arq_pool.close()
     logger.info("Application shutdown complete")
 
 
