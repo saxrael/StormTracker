@@ -226,10 +226,10 @@ async def submit_for_verification(
             user.role = "pending"
             await session.commit()
 
-        roots = await session.scalars(
-            select(User.telegram_id).where(User.role == "root")
+        admins = await session.scalars(
+            select(User.telegram_id).where(User.role.in_(["root", "admin"]))
         )
-        for root_id in roots:
+        for admin_id in admins:
             try:
                 user_info = f"Full Name: {full_name}\n"
                 if username:
@@ -237,22 +237,22 @@ async def submit_for_verification(
                 user_info += f"ID: {telegram_id}"
 
                 await telegram_service.send_message(
-                    root_id,
+                    admin_id,
                     f"🔔 Verification Request:\n{user_info}\n\n"
                     f"Reply with: 'Approve {telegram_id}' or 'Reject {telegram_id}'",
                 )
             except Exception:
                 pass
-    return "Verification request sent to root admin. User status is pending."
+    return "Verification request sent to the admins. User status is pending."
 
 
 @tool
 async def resolve_verification(
     target_telegram_id: int, action: str, *, role: Annotated[str, InjectedToolArg]
 ) -> str:
-    """Root admin tool to 'approve' or 'reject' a pending user's verification."""
-    if role != "root":
-        return "Error: Only root admins can resolve verifications."
+    """Admin tool to 'approve' or 'reject' a pending user's verification."""
+    if role not in ["root", "admin"]:
+        return "Error: Only admins can resolve verifications."
 
     action = action.lower()
     if action not in ["approve", "reject"]:
