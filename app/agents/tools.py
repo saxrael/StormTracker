@@ -248,9 +248,16 @@ async def submit_for_verification(
 
 @tool
 async def resolve_verification(
-    target_telegram_id: int, action: str, *, role: Annotated[str, InjectedToolArg]
+    target_telegram_id: int,
+    action: str,
+    *,
+    role: Annotated[str, InjectedToolArg],
+    telegram_id: Annotated[int, InjectedToolArg],
+    admin_name: Annotated[str, InjectedToolArg],
 ) -> str:
-    """Admin tool to 'approve' or 'reject' a pending user's verification."""
+    """Admin tool to 'approve' or 'reject' a pending user's verification.
+    Handles the case where another admin already resolved the request,
+    and broadcasts the outcome to all other admins."""
     if role not in ["root", "admin"]:
         return "Error: Only admins can resolve verifications."
 
@@ -262,30 +269,61 @@ async def resolve_verification(
         user = await session.scalar(
             select(User).where(User.telegram_id == target_telegram_id)
         )
-        if not user or user.role != "pending":
-            return "Error: User not found or not in pending state."
+
+        if not user:
+            return "Error: No user found with that Telegram ID."
+
+        # Already resolved by another admin
+        if user.role != "pending":
+            return (
+                f"ℹ️ No action needed — {user.full_name or 'this user'} has already "
+                f"been verified by another admin. Their current role is '{user.role}'."
+            )
 
         new_role = "member" if action == "approve" else "public"
         user.role = new_role
+        resolved_name = user.full_name or str(target_telegram_id)
         await session.commit()
 
+        # Notify the target user
         if action == "approve":
-            msg = (
+            user_msg = (
                 "🎉 Your verification for Mighty Storm is approved! "
                 "You can now submit assignments."
             )
         else:
-            msg = (
+            user_msg = (
                 "ℹ️ Your membership request for Mighty Storm was not approved at "
                 "this time. However, you've been onboarded as a Public User. "
                 "You can still use me to track your personal ear-training "
                 "progress and get analytical advice. I'm still here to help you! 🎵"
             )
         try:
-            await telegram_service.send_message(target_telegram_id, msg)
+            await telegram_service.send_message(target_telegram_id, user_msg)
         except Exception:
             pass
-    return f"User {target_telegram_id} successfully resolved as {new_role}."
+
+        # Broadcast resolution to all other admins
+        action_label = "approved ✅" if action == "approve" else "rejected ❌"
+        admin_notice = (
+            f"📋 Verification Resolved: {resolved_name} was {action_label} "
+            f"by {admin_name}. No further action needed."
+        )
+        admin_ids = await session.scalars(
+            select(User.telegram_id).where(User.role.in_(["root", "admin"]))
+        )
+        for admin_id in admin_ids:
+            if admin_id == telegram_id:
+                continue  # Skip the admin who just resolved it
+            try:
+                await telegram_service.send_message(admin_id, admin_notice)
+            except Exception:
+                pass
+
+    return (
+        f"User {target_telegram_id} ({resolved_name}) successfully resolved as "
+        f"{new_role}. All admins notified."
+    )
 
 
 @tool
