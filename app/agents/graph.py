@@ -270,7 +270,11 @@ async def tool_executor(state: AgentState) -> dict:
                     "broadcast_to_members",
                 ]:
                     tool_args["role"] = state["role"]
-                if name in ["message_member", "broadcast_to_members"]:
+                if name in [
+                    "message_member",
+                    "broadcast_to_members",
+                    "resolve_verification",
+                ]:
                     tool_args["admin_name"] = state.get("full_name") or "Admin"
                 if name == "visual_search":
                     tool_args["image_base64"] = state.get("image_base64")
@@ -278,6 +282,7 @@ async def tool_executor(state: AgentState) -> dict:
                     "submit_for_verification",
                     "onboard_public_user",
                     "update_profile",
+                    "resolve_verification",
                 ]:
                     tool_args["telegram_id"] = state["user_id"]
                     if name == "submit_for_verification":
