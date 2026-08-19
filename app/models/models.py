@@ -92,6 +92,12 @@ class Metric(Base):
     granular_details: Mapped[dict] = mapped_column(JSONB, nullable=False)
     device_metadata: Mapped[str | None] = mapped_column(String(255), nullable=True)
     image_vector = mapped_column(Vector(2048))
+    image_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    breakdown_signature: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
 
     submission: Mapped["Submission"] = relationship(back_populates="metrics")
 

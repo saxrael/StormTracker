@@ -147,15 +147,60 @@ async def tool_executor(state: AgentState) -> dict:
                 username = state.get("username")
                 user_id_tg = state.get("user_id")
 
+                image_hash = None
                 if image_b64:
-                    image_vector = await get_image_embedding(image_b64)
+                    try:
+                        image_hash = fraud_service.compute_image_hash(image_b64)
+                    except Exception as e:
+                        logger.warning("Failed to compute image hash: %s", e)
+
+                exercise_type = extracted_metrics.get("exercise_type", "unknown")
+                total_questions = extracted_metrics.get("total_questions", 0)
+                total_correct = extracted_metrics.get("total_correct", 0)
+                overall_score = extracted_metrics.get("overall_score_percentage", 0.0)
+                granular_details = extracted_metrics.get("granular_details", [])
+
+                breakdown_sig = fraud_service.compute_canonical_content_signature(
+                    exercise_type=exercise_type,
+                    total_questions=total_questions,
+                    total_correct=total_correct,
+                    overall_score_percentage=overall_score,
+                    granular_details=granular_details,
+                )
 
                 async with async_session() as session:
                     try:
+                        if image_hash:
+                            exact_dup = await fraud_service.check_exact_image_duplicate(
+                                session, image_hash
+                            )
+                            if exact_dup:
+                                msg = (
+                                    "Fraud detected: Duplicate screenshot image file "
+                                    "already submitted."
+                                )
+                                tool_messages.append(
+                                    ToolMessage(
+                                        content=msg,
+                                        tool_call_id=call_id,
+                                    )
+                                )
+                                continue
+
                         device_metadata = extracted_metrics.get("device_metadata")
-                        if device_metadata:
+                        if device_metadata and fraud_service.is_valid_device_metadata(
+                            device_metadata
+                        ):
                             meta_dup = await fraud_service.check_metadata_duplicate(
-                                session, db_user_id, device_metadata
+                                session=session,
+                                db_user_id=db_user_id,
+                                new_metadata=device_metadata,
+                                exercise_type=exercise_type,
+                                total_questions=total_questions,
+                                total_correct=total_correct,
+                                overall_score_percentage=overall_score,
+                                granular_details=granular_details,
+                                breakdown_signature=breakdown_sig,
                             )
                             if meta_dup:
                                 msg = (
@@ -170,9 +215,18 @@ async def tool_executor(state: AgentState) -> dict:
                                 )
                                 continue
 
+                        if image_b64:
+                            image_vector = await get_image_embedding(image_b64)
+
                         if image_vector:
                             sim = await fraud_service.check_visual_duplicate(
-                                session, db_user_id, image_vector
+                                session=session,
+                                db_user_id=db_user_id,
+                                new_vector=image_vector,
+                                exercise_type=exercise_type,
+                                total_questions=total_questions,
+                                total_correct=total_correct,
+                                overall_score_percentage=overall_score,
                             )
                             settings = get_settings()
                             if sim > settings.IMAGE_SIMILARITY_THRESHOLD:
@@ -212,19 +266,15 @@ async def tool_executor(state: AgentState) -> dict:
 
                         stmt_metric_insert = insert(Metric).values(
                             submission_id=db_sub_id,
-                            exercise_type=extracted_metrics.get(
-                                "exercise_type", "unknown"
-                            ),
-                            total_questions=extracted_metrics.get("total_questions", 0),
-                            total_correct=extracted_metrics.get("total_correct", 0),
-                            overall_score_percentage=extracted_metrics.get(
-                                "overall_score_percentage", 0.0
-                            ),
-                            granular_details=extracted_metrics.get(
-                                "granular_details", {}
-                            ),
+                            exercise_type=exercise_type,
+                            total_questions=total_questions,
+                            total_correct=total_correct,
+                            overall_score_percentage=overall_score,
+                            granular_details=granular_details,
                             device_metadata=device_metadata,
                             image_vector=image_vector,
+                            image_hash=image_hash,
+                            breakdown_signature=breakdown_sig,
                         )
                         await session.execute(stmt_metric_insert)
                         await session.commit()
