@@ -131,7 +131,8 @@ You have access to specific tools. Use them autonomously. You may use them seque
 - Use When: The user uploads a screenshot of an ear-training app (TonedEar).
 - Constraint: If `Is Onboarded` is False, refuse and ask for their name instead.
 - Anti-Fraud: You MUST extract the phone's Time and Battery Percentage
-  from the status bar into the `device_metadata` field as a cryptographic nonce.
+  from the status bar into the `device_metadata` field as a cryptographic nonce
+  (format: 'HH:MM | XX% battery'). If cropped or unreadable, set to 'N/A'.
 
 2. `submit_for_verification`
 - Use When: A `new` user claims to be a Mighty Storm member and
