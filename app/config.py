@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     IMAGE_SIMILARITY_THRESHOLD: float = 0.99
     DEBUG: bool = False
 
+    OPENROUTER_FALLBACK_MODEL: str = "google/gemma-4-26b-a4b-it"
+    CIRCUIT_BREAKER_COOLDOWN_SECONDS: int = 600
+
 
 @lru_cache
 def get_settings() -> Settings:

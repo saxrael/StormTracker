@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -8,7 +9,11 @@ from langgraph.graph import END, StateGraph
 from sqlalchemy.dialects.postgresql import insert
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.agents.llm_setup import get_gemma_llm, get_image_embedding
+from app.agents.llm_setup import (
+    get_gemma_llm,
+    get_image_embedding,
+    get_openrouter_llm,
+)
 from app.agents.prompts import get_formatted_system_prompt
 from app.agents.tools import (
     authenticate_user,
@@ -28,6 +33,11 @@ from app.config import get_settings
 from app.models.models import Metric, Submission, User
 from app.schemas.schemas import MetricExtractionSchema
 from app.services import conversation_service, fraud_service
+from app.services.circuit_breaker import (
+    is_google_ai_in_cooldown,
+    is_rate_limit_error,
+    trip_google_ai_circuit_breaker,
+)
 from app.services.database import async_session, redis_client
 from app.services.telegram_service import TelegramService
 from app.state.state import AgentState
@@ -67,25 +77,32 @@ _TOOL_REGISTRY = {
 }
 
 
+TOOLS = [
+    MetricExtractionSchema,
+    query_analytics,
+    authenticate_user,
+    generate_admin_report,
+    visual_search,
+    submit_for_verification,
+    resolve_verification,
+    onboard_public_user,
+    create_invite_token,
+    message_member,
+    broadcast_to_members,
+    update_profile,
+    search_past_conversations,
+]
+
+
 async def reasoning_core(state: AgentState) -> dict:
-    llm = get_gemma_llm()
-    llm_with_tools = llm.bind_tools(
-        [
-            MetricExtractionSchema,
-            query_analytics,
-            authenticate_user,
-            generate_admin_report,
-            visual_search,
-            submit_for_verification,
-            resolve_verification,
-            onboard_public_user,
-            create_invite_token,
-            message_member,
-            broadcast_to_members,
-            update_profile,
-            search_past_conversations,
-        ]
-    )
+    in_cooldown = await is_google_ai_in_cooldown()
+    if in_cooldown:
+        logger.info("Google AI in 10-min cooldown. Using OpenRouter fallback directly.")
+        llm = get_openrouter_llm()
+    else:
+        llm = get_gemma_llm()
+
+    llm_with_tools = llm.bind_tools(TOOLS)
     system_prompt = get_formatted_system_prompt(
         user_role=state["role"],
         full_name=state.get("full_name"),
@@ -96,9 +113,28 @@ async def reasoning_core(state: AgentState) -> dict:
         retry_count=state["retry_count"],
         critique_block=state.get("critique"),
     )
-    response = await llm_with_tools.ainvoke(
-        [SystemMessage(content=system_prompt)] + list(state["messages"])
-    )
+    prompt_messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
+
+    try:
+        response = await llm_with_tools.ainvoke(prompt_messages)
+    except Exception as exc:
+        if not in_cooldown and is_rate_limit_error(exc):
+            settings = get_settings()
+            cooldown_secs = getattr(settings, "CIRCUIT_BREAKER_COOLDOWN_SECONDS", 600)
+            logger.warning(
+                "Google AI rate limit encountered (%s). Tripping circuit breaker "
+                "for %ds and falling back to OpenRouter.",
+                exc,
+                cooldown_secs,
+            )
+            await trip_google_ai_circuit_breaker(
+                reason=str(exc), cooldown_seconds=cooldown_secs
+            )
+            fallback_llm = get_openrouter_llm()
+            fallback_with_tools = fallback_llm.bind_tools(TOOLS)
+            response = await fallback_with_tools.ainvoke(prompt_messages)
+        else:
+            raise
 
     thinking = (
         response.additional_kwargs.get("thinking")
@@ -418,8 +454,8 @@ stormtracker_app = builder.compile()
 
 
 @retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=2, min=4, max=30),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
     reraise=True,
 )
 async def _invoke_graph_with_retry(app, state, config):
@@ -457,6 +493,25 @@ async def execute_graph(
         )
 
         return result_state
+    except asyncio.CancelledError:
+        logger.warning(
+            "Graph execution was cancelled (timeout) for session %s", session_id
+        )
+        try:
+            telegram_client = TelegramService()
+            await telegram_client.send_message(
+                chat_id=int(session_id),
+                text=(
+                    "The system is currently experiencing a high volume of requests "
+                    "and your request timed out. Please wait a few moments "
+                    "before trying again."
+                ),
+            )
+        except Exception as fallback_e:
+            logger.error(
+                "CRITICAL: Failed to send timeout fallback message: %s", fallback_e
+            )
+        raise
     except Exception as e:
         traceback.print_exc()
         try:

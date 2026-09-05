@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langfuse.openai import AsyncOpenAI
 
 from app.config import get_settings
@@ -14,6 +15,19 @@ def get_gemma_llm() -> ChatGoogleGenerativeAI:
         temperature=0.25,
         api_key=settings.GOOGLE_AI_API_KEY,
         thinking_config={"include_thoughts": True},
+        max_retries=0,
+    )
+
+
+@lru_cache
+def get_openrouter_llm(model: str | None = None) -> ChatOpenAI:
+    settings = get_settings()
+    model_name = model or settings.OPENROUTER_FALLBACK_MODEL
+    return ChatOpenAI(
+        model=model_name,
+        openai_api_base="https://openrouter.ai/api/v1",
+        openai_api_key=settings.OPENROUTER_API_KEY,
+        temperature=0.25,
     )
 
 

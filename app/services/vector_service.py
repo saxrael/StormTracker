@@ -9,12 +9,13 @@ async def hybrid_search_chat_history(
     vector_str = f"[{','.join(map(str, embedding))}]"
     sql = """
     WITH dense AS (
-        SELECT id, chunk_text, embedding <=> :vector::vector AS distance,
+        SELECT id, chunk_text, embedding <=> CAST(:vector AS vector) AS distance,
                row_number() OVER (
-                   ORDER BY embedding <=> :vector::vector
+                   ORDER BY embedding <=> CAST(:vector AS vector)
                ) as dense_rank
         FROM chat_history_chunks
-        WHERE user_id = :user_id::uuid AND embedding <=> :vector::vector < 0.75
+        WHERE user_id = CAST(:user_id AS uuid)
+          AND embedding <=> CAST(:vector AS vector) < 0.75
         LIMIT 20
     ),
     sparse AS (
@@ -26,7 +27,7 @@ async def hybrid_search_chat_history(
                    ) DESC
                ) as sparse_rank
         FROM chat_history_chunks
-        WHERE user_id = :user_id::uuid
+        WHERE user_id = CAST(:user_id AS uuid)
           AND search_tsvector @@ plainto_tsquery('english', :query)
         LIMIT 20
     )
