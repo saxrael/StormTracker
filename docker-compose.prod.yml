@@ -17,6 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: stormtracker:latest
     restart: unless-stopped
     env_file: .env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --log-level info
@@ -27,15 +28,15 @@ services:
       - internal
 
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: stormtracker:latest
     restart: unless-stopped
     env_file: .env
     command: arq app.worker.WorkerSettings
     depends_on:
       redis:
         condition: service_healthy
+      app:
+        condition: service_started
     networks:
       - internal
 

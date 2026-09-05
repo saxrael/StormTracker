@@ -55,6 +55,8 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 30m
+          timeout: 60s
           script: |
             if [ ! -d "/home/ubuntu/stormtracker/.git" ]; then
               rm -rf /home/ubuntu/stormtracker
@@ -86,3 +88,4 @@ jobs:
             EOF
             docker compose -f docker-compose.prod.yml up -d --build
             docker compose -f docker-compose.prod.yml exec -T app alembic upgrade head
+            docker image prune -f
