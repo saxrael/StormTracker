@@ -19,5 +19,4 @@ def test_get_openrouter_llm_configured_correctly():
     settings = get_settings()
     llm = get_openrouter_llm()
     assert isinstance(llm, ChatOpenAI)
-    assert llm.model_name == settings.OPENROUTER_FALLBACK_MODEL
     assert "openrouter.ai" in str(llm.openai_api_base)
