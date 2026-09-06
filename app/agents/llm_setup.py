@@ -24,7 +24,7 @@ def get_openrouter_llm(model: str | None = None) -> ChatOpenAI:
     settings = get_settings()
     # model_name = model or settings.OPENROUTER_FALLBACK_MODEL
     return ChatOpenAI(
-        model="google/gemma-4-31b-it",
+        model="google/gemma-4-31b-it:free",
         openai_api_base="https://openrouter.ai/api/v1",
         openai_api_key=settings.OPENROUTER_API_KEY,
         temperature=0.25,
