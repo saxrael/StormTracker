@@ -11,7 +11,7 @@ from app.config import get_settings
 def get_gemma_llm() -> ChatGoogleGenerativeAI:
     settings = get_settings()
     return ChatGoogleGenerativeAI(
-        model="gemma-4-26b-a4b-it",
+        model="gemma-4-31b-it",
         temperature=0.25,
         api_key=settings.GOOGLE_AI_API_KEY,
         thinking_config={"include_thoughts": True},
@@ -24,7 +24,7 @@ def get_openrouter_llm(model: str | None = None) -> ChatOpenAI:
     settings = get_settings()
     # model_name = model or settings.OPENROUTER_FALLBACK_MODEL
     return ChatOpenAI(
-        model="google/gemma-4-26b-a4b-it:free",
+        model="google/gemma-4-31b-it",
         openai_api_base="https://openrouter.ai/api/v1",
         openai_api_key=settings.OPENROUTER_API_KEY,
         temperature=0.25,
