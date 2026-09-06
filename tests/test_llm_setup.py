@@ -4,7 +4,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
 from app.agents.llm_setup import get_gemma_llm, get_openrouter_llm
-from app.config import get_settings
 
 
 def test_get_gemma_llm_configured_with_zero_retries():
@@ -16,7 +15,6 @@ def test_get_gemma_llm_configured_with_zero_retries():
 
 def test_get_openrouter_llm_configured_correctly():
     """Verify OpenRouter fallback model configuration and base URL."""
-    settings = get_settings()
     llm = get_openrouter_llm()
     assert isinstance(llm, ChatOpenAI)
     assert "openrouter.ai" in str(llm.openai_api_base)
