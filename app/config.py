@@ -36,12 +36,8 @@ class Settings(BaseSettings):
 
     OPENROUTER_MAIN_MODEL: str = "qwen/qwen3.8-27b:free"
     GOOGLE_FALLBACK_MODEL: str = "gemma-4-31b-it"
-    OPENROUTER_IMAGE_EMBEDDING_MODEL: str = (
-        "nvidia/llama-nemotron-embed-vl-1b-v2:free"
-    )
-    OPENROUTER_TEXT_EMBEDDING_MODEL: str = (
-        "nvidia/llama-nemotron-embed-vl-1b-v2:free"
-    )
+    OPENROUTER_IMAGE_EMBEDDING_MODEL: str = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+    OPENROUTER_TEXT_EMBEDDING_MODEL: str = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
     OPENROUTER_REASONING_EFFORT: str = "medium"
 
     @field_validator(

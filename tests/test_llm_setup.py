@@ -125,8 +125,7 @@ def test_settings_empty_string_model_fallback():
         == "nvidia/llama-nemotron-embed-vl-1b-v2:free"
     )
     assert (
-        s.OPENROUTER_TEXT_EMBEDDING_MODEL
-        == "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+        s.OPENROUTER_TEXT_EMBEDDING_MODEL == "nvidia/llama-nemotron-embed-vl-1b-v2:free"
     )
     assert s.OPENROUTER_REASONING_EFFORT == "medium"
 

@@ -198,10 +198,7 @@ async def _execute_cognitive_llm_call(
         if isinstance(content, str):
             return content
         if isinstance(content, list):
-            texts = [
-                b if isinstance(b, str) else b.get("text", "")
-                for b in content
-            ]
+            texts = [b if isinstance(b, str) else b.get("text", "") for b in content]
             return " ".join(texts)
         return str(content or "")
 

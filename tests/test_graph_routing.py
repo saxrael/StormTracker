@@ -160,12 +160,9 @@ async def test_reasoning_core_extracts_canonical_reasoning_thought():
     mock_openrouter_llm = MagicMock()
     mock_openrouter_llm.bind_tools.return_value = mock_openrouter_bound
 
-    with patch(
-        "app.agents.graph.get_openrouter_llm", return_value=mock_openrouter_llm
-    ):
+    with patch("app.agents.graph.get_openrouter_llm", return_value=mock_openrouter_llm):
         result = await reasoning_core(state)
         msg_content = result["messages"][0].content
         assert "<thought>" in msg_content
         assert "Step 1: Check interval history" in msg_content
         assert "Musical guidance for user" in msg_content
-
