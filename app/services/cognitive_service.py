@@ -3,16 +3,21 @@ import logging
 import re
 import uuid
 
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langfuse import observe
 from sqlalchemy import select, update
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.agents.llm_setup import _get_openrouter_client, get_text_embedding
+from app.agents.llm_setup import (
+    _get_openrouter_client,
+    get_gemma_llm,
+    get_text_embedding,
+)
+from app.config import get_settings
 from app.models.models import ChatHistoryChunk, User, UserMemoryFact
 
 logger = logging.getLogger(__name__)
 
-SUMMARY_MODEL = "google/gemma-4-31b-it"
 
 FACT_EXTRACTOR_PROMPT = """ROLE: Elite Cognitive Memory Extractor.
 
@@ -136,15 +141,69 @@ async def retrieve_relevant_facts(
 async def _llm_call(
     client, model, messages, temperature: float, max_tokens: int | None = None
 ):
+    settings = get_settings()
     kwargs = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        "extra_body": {"reasoning": {"enabled": True}},
+        "extra_body": {
+            "reasoning": {
+                "effort": settings.OPENROUTER_REASONING_EFFORT,
+            }
+        },
     }
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     return await client.chat.completions.create(**kwargs)
+
+
+async def _execute_cognitive_llm_call(
+    client,
+    messages: list[dict],
+    temperature: float,
+    max_tokens: int | None = None,
+) -> str:
+    settings = get_settings()
+    primary_model = settings.OPENROUTER_MAIN_MODEL
+
+    try:
+        response = await _llm_call(
+            client=client,
+            model=primary_model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return response.choices[0].message.content
+    except Exception as exc:
+        logger.warning(
+            "OpenRouter cognitive processing failed (%s). Falling back to "
+            "Google AI Studio (%s).",
+            exc,
+            settings.GOOGLE_FALLBACK_MODEL,
+        )
+        fallback_llm = get_gemma_llm()
+        langchain_msgs = []
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "system":
+                langchain_msgs.append(SystemMessage(content=content))
+            elif role == "user":
+                langchain_msgs.append(HumanMessage(content=content))
+            elif role == "assistant":
+                langchain_msgs.append(AIMessage(content=content))
+        fallback_resp = await fallback_llm.ainvoke(langchain_msgs)
+        content = fallback_resp.content
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            texts = [
+                b if isinstance(b, str) else b.get("text", "")
+                for b in content
+            ]
+            return " ".join(texts)
+        return str(content or "")
 
 
 @observe(name="Cognitive Memory Processing")
@@ -170,10 +229,9 @@ async def process_cognitive_memory(
             )
             old_summary = user.conversation_summary or "No existing summary."
 
-        summary_response = await _llm_call(
-            client,
-            SUMMARY_MODEL,
-            [
+        new_summary = await _execute_cognitive_llm_call(
+            client=client,
+            messages=[
                 {
                     "role": "system",
                     "content": (
@@ -200,7 +258,6 @@ async def process_cognitive_memory(
             temperature=0.2,
             max_tokens=875,
         )
-        new_summary = summary_response.choices[0].message.content
 
         async with session_factory() as session:
             await session.execute(
@@ -251,13 +308,11 @@ async def process_cognitive_memory(
             batch_text=messages_block,
         )
 
-        facts_response = await _llm_call(
-            client,
-            SUMMARY_MODEL,
-            [{"role": "user", "content": user_prompt}],
+        raw_response = await _execute_cognitive_llm_call(
+            client=client,
+            messages=[{"role": "user", "content": user_prompt}],
             temperature=0.1,
         )
-        raw_response = facts_response.choices[0].message.content
 
         match = re.search(r"\{.*\}", raw_response, re.DOTALL)
         if match:

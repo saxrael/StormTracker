@@ -85,6 +85,11 @@ jobs:
             ROOT_CLAIM_TOKEN=${{ secrets.ROOT_CLAIM_TOKEN }}
             RATE_LIMIT_REQUESTS=${{ secrets.RATE_LIMIT_REQUESTS }}
             IMAGE_SIMILARITY_THRESHOLD=${{ secrets.IMAGE_SIMILARITY_THRESHOLD }}
+            OPENROUTER_MAIN_MODEL=${{ secrets.OPENROUTER_MAIN_MODEL }}
+            GOOGLE_FALLBACK_MODEL=${{ secrets.GOOGLE_FALLBACK_MODEL }}
+            OPENROUTER_IMAGE_EMBEDDING_MODEL=${{ secrets.OPENROUTER_IMAGE_EMBEDDING_MODEL }}
+            OPENROUTER_TEXT_EMBEDDING_MODEL=${{ secrets.OPENROUTER_TEXT_EMBEDDING_MODEL }}
+            OPENROUTER_REASONING_EFFORT=${{ secrets.OPENROUTER_REASONING_EFFORT }}
             EOF
             docker compose -f docker-compose.prod.yml up -d --build
             docker compose -f docker-compose.prod.yml exec -T app alembic upgrade head

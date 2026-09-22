@@ -8,10 +8,11 @@ from app.config import get_settings
 
 
 @lru_cache
-def get_gemma_llm() -> ChatGoogleGenerativeAI:
+def get_gemma_llm(model: str | None = None) -> ChatGoogleGenerativeAI:
     settings = get_settings()
+    model_name = model or settings.GOOGLE_FALLBACK_MODEL
     return ChatGoogleGenerativeAI(
-        model="gemma-4-31b-it",
+        model=model_name,
         temperature=0.25,
         api_key=settings.GOOGLE_AI_API_KEY,
         thinking_config={"include_thoughts": True},
@@ -22,12 +23,17 @@ def get_gemma_llm() -> ChatGoogleGenerativeAI:
 @lru_cache
 def get_openrouter_llm(model: str | None = None) -> ChatOpenAI:
     settings = get_settings()
-    # model_name = model or settings.OPENROUTER_FALLBACK_MODEL
+    model_name = model or settings.OPENROUTER_MAIN_MODEL
     return ChatOpenAI(
-        model="qwen/qwen3.8-27b:free",
+        model=model_name,
         openai_api_base="https://openrouter.ai/api/v1",
         openai_api_key=settings.OPENROUTER_API_KEY,
         temperature=0.25,
+        extra_body={
+            "reasoning": {
+                "effort": settings.OPENROUTER_REASONING_EFFORT,
+            }
+        },
     )
 
 
@@ -41,9 +47,10 @@ def _get_openrouter_client() -> AsyncOpenAI:
 
 
 async def get_image_embedding(base64_string: str) -> list[float]:
+    settings = get_settings()
     client = _get_openrouter_client()
     response = await client.embeddings.create(
-        model="nvidia/llama-nemotron-embed-vl-1b-v2:free",
+        model=settings.OPENROUTER_IMAGE_EMBEDDING_MODEL,
         input=[
             {
                 "content": [
@@ -61,9 +68,10 @@ async def get_image_embedding(base64_string: str) -> list[float]:
 
 
 async def get_text_embedding(text: str) -> list[float]:
+    settings = get_settings()
     client = _get_openrouter_client()
     response = await client.embeddings.create(
-        model="nvidia/llama-nemotron-embed-vl-1b-v2:free",
+        model=settings.OPENROUTER_TEXT_EMBEDDING_MODEL,
         input=text,
         encoding_format="float",
     )

@@ -7,7 +7,12 @@ import traceback
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, StateGraph
 from sqlalchemy.dialects.postgresql import insert
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.agents.llm_setup import (
     get_gemma_llm,
@@ -33,11 +38,7 @@ from app.config import get_settings
 from app.models.models import Metric, Submission, User
 from app.schemas.schemas import MetricExtractionSchema
 from app.services import conversation_service, fraud_service
-from app.services.circuit_breaker import (
-    is_google_ai_in_cooldown,
-    is_rate_limit_error,
-    trip_google_ai_circuit_breaker,
-)
+from app.services.circuit_breaker import is_transient_error
 from app.services.database import async_session, redis_client
 from app.services.telegram_service import TelegramService
 from app.state.state import AgentState
@@ -94,15 +95,20 @@ TOOLS = [
 ]
 
 
-async def reasoning_core(state: AgentState) -> dict:
-    in_cooldown = await is_google_ai_in_cooldown()
-    if in_cooldown:
-        logger.info("Google AI in 10-min cooldown. Using OpenRouter fallback directly.")
-        llm = get_openrouter_llm()
-    else:
-        llm = get_gemma_llm()
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=0.5, min=0.5, max=4),
+    retry=retry_if_exception(is_transient_error),
+    reraise=True,
+)
+async def _invoke_primary_llm(model, messages):
+    return await model.ainvoke(messages)
 
-    llm_with_tools = llm.bind_tools(TOOLS)
+
+async def reasoning_core(state: AgentState) -> dict:
+    primary_llm = get_openrouter_llm()
+    primary_with_tools = primary_llm.bind_tools(TOOLS)
+
     system_prompt = get_formatted_system_prompt(
         user_role=state["role"],
         full_name=state.get("full_name"),
@@ -116,28 +122,23 @@ async def reasoning_core(state: AgentState) -> dict:
     prompt_messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
 
     try:
-        response = await llm_with_tools.ainvoke(prompt_messages)
+        response = await _invoke_primary_llm(primary_with_tools, prompt_messages)
     except Exception as exc:
-        if not in_cooldown and is_rate_limit_error(exc):
-            settings = get_settings()
-            cooldown_secs = getattr(settings, "CIRCUIT_BREAKER_COOLDOWN_SECONDS", 600)
-            logger.warning(
-                "Google AI rate limit encountered (%s). Tripping circuit breaker "
-                "for %ds and falling back to OpenRouter.",
-                exc,
-                cooldown_secs,
-            )
-            await trip_google_ai_circuit_breaker(
-                reason=str(exc), cooldown_seconds=cooldown_secs
-            )
-            fallback_llm = get_openrouter_llm()
-            fallback_with_tools = fallback_llm.bind_tools(TOOLS)
-            response = await fallback_with_tools.ainvoke(prompt_messages)
-        else:
-            raise
+        logger.warning(
+            "Primary OpenRouter LLM failed (%s). Falling back to Google AI "
+            "Studio Gemma.",
+            exc,
+        )
+        fallback_llm = get_gemma_llm()
+        fallback_with_tools = fallback_llm.bind_tools(TOOLS)
+        response = await fallback_with_tools.ainvoke(prompt_messages)
 
     thinking = (
-        response.additional_kwargs.get("thinking")
+        response.additional_kwargs.get("reasoning")
+        or response.response_metadata.get("reasoning")
+        or response.additional_kwargs.get("reasoning_content")
+        or response.response_metadata.get("reasoning_content")
+        or response.additional_kwargs.get("thinking")
         or response.response_metadata.get("thinking")
         or response.additional_kwargs.get("reasoning_details")
         or response.response_metadata.get("reasoning_details")

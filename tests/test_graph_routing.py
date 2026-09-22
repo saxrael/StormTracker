@@ -1,4 +1,4 @@
-"""Integration tests for reasoning_core circuit breaker and failover routing."""
+"""Integration tests for reasoning_core routing and Google AI fallback."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -6,19 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.agents.graph import reasoning_core
-from app.services.circuit_breaker import (
-    is_google_ai_in_cooldown,
-    reset_google_ai_circuit_breaker,
-)
 from app.state.state import AgentState
-
-
-@pytest.fixture(autouse=True)
-async def reset_circuit():
-    """Ensure circuit breaker is reset before each test."""
-    await reset_google_ai_circuit_breaker()
-    yield
-    await reset_google_ai_circuit_breaker()
 
 
 def _create_sample_state() -> AgentState:
@@ -43,65 +31,141 @@ def _create_sample_state() -> AgentState:
 
 
 @pytest.mark.asyncio
-async def test_reasoning_core_fails_over_to_openrouter_on_429():
-    """Verify hitting 429 on Google AI trips circuit breaker and uses OpenRouter."""
+async def test_reasoning_core_invokes_openrouter_primary():
+    """Verify that reasoning_core calls OpenRouter (Qwen) by default."""
     state = _create_sample_state()
 
     mock_google_bound = AsyncMock()
-    mock_google_bound.ainvoke.side_effect = Exception(
-        "429 RESOURCE_EXHAUSTED quota limit reached"
-    )
     mock_google_llm = MagicMock()
     mock_google_llm.bind_tools.return_value = mock_google_bound
 
-    openrouter_response = AIMessage(content="Hello from OpenRouter fallback!")
+    openrouter_response = AIMessage(content="Hello from OpenRouter Qwen!")
     mock_openrouter_bound = AsyncMock()
     mock_openrouter_bound.ainvoke.return_value = openrouter_response
     mock_openrouter_llm = MagicMock()
     mock_openrouter_llm.bind_tools.return_value = mock_openrouter_bound
 
     with (
-        patch("app.agents.graph.get_gemma_llm", return_value=mock_google_llm),
         patch("app.agents.graph.get_openrouter_llm", return_value=mock_openrouter_llm),
+        patch("app.agents.graph.get_gemma_llm", return_value=mock_google_llm),
     ):
         result = await reasoning_core(state)
 
-        # 1. OpenRouter was called to seamlessly handle the message
+        # 1. OpenRouter primary was invoked
         assert mock_openrouter_bound.ainvoke.called
-        assert "OpenRouter fallback" in result["messages"][0].content
+        assert "OpenRouter Qwen" in result["messages"][0].content
 
-        # 2. Circuit breaker was tripped into 10-minute cooldown
-        assert await is_google_ai_in_cooldown() is True
+        # 2. Google AI fallback was NOT invoked
+        assert not mock_google_bound.ainvoke.called
+        assert not mock_google_llm.bind_tools.called
 
 
 @pytest.mark.asyncio
-async def test_reasoning_core_bypasses_google_ai_when_in_cooldown():
-    """Verify that during cooldown, Google AI is not called and OpenRouter is used."""
-    from app.services.circuit_breaker import trip_google_ai_circuit_breaker
-
-    # Trip the circuit breaker
-    await trip_google_ai_circuit_breaker("Simulated prior 429", cooldown_seconds=600)
-    assert await is_google_ai_in_cooldown() is True
-
+async def test_reasoning_core_fails_over_to_google_ai_on_openrouter_error():
+    """Verify reasoning_core falls back to Google AI Gemma on OpenRouter error."""
     state = _create_sample_state()
 
-    mock_google_llm = MagicMock()
-    openrouter_response = AIMessage(content="Direct OpenRouter response")
+    # OpenRouter raises an error (e.g. 429 quota exhaustion or service error)
     mock_openrouter_bound = AsyncMock()
-    mock_openrouter_bound.ainvoke.return_value = openrouter_response
+    mock_openrouter_bound.ainvoke.side_effect = Exception(
+        "429 Rate limit exceeded on OpenRouter"
+    )
     mock_openrouter_llm = MagicMock()
     mock_openrouter_llm.bind_tools.return_value = mock_openrouter_bound
 
+    # Google AI succeeds as fallback
+    google_response = AIMessage(content="Hello from Google AI Gemma fallback!")
+    mock_google_bound = AsyncMock()
+    mock_google_bound.ainvoke.return_value = google_response
+    mock_google_llm = MagicMock()
+    mock_google_llm.bind_tools.return_value = mock_google_bound
+
     with (
-        patch("app.agents.graph.get_gemma_llm", mock_google_llm),
         patch("app.agents.graph.get_openrouter_llm", return_value=mock_openrouter_llm),
+        patch("app.agents.graph.get_gemma_llm", return_value=mock_google_llm),
     ):
         result = await reasoning_core(state)
 
-        # Google AI must NOT be invoked at all
-        assert not mock_google_llm.bind_tools.called
-        assert not mock_google_llm.ainvoke.called
-
-        # OpenRouter handled it directly
+        # 1. OpenRouter was attempted
         assert mock_openrouter_bound.ainvoke.called
-        assert "Direct OpenRouter response" in result["messages"][0].content
+
+        # 2. Google AI fallback was called and handled the request
+        assert mock_google_bound.ainvoke.called
+        assert "Google AI Gemma fallback" in result["messages"][0].content
+
+
+@pytest.mark.asyncio
+async def test_reasoning_core_no_cooldown_subsequent_request_tries_openrouter():
+    """Verify no cooldown: subsequent requests still try OpenRouter first."""
+    state = _create_sample_state()
+
+    mock_openrouter_bound = AsyncMock()
+    mock_openrouter_bound.ainvoke.return_value = AIMessage(
+        content="OpenRouter fresh call"
+    )
+    mock_openrouter_llm = MagicMock()
+    mock_openrouter_llm.bind_tools.return_value = mock_openrouter_bound
+
+    mock_google_bound = AsyncMock()
+    mock_google_llm = MagicMock()
+    mock_google_llm.bind_tools.return_value = mock_google_bound
+
+    with (
+        patch("app.agents.graph.get_openrouter_llm", return_value=mock_openrouter_llm),
+        patch("app.agents.graph.get_gemma_llm", return_value=mock_google_llm),
+    ):
+        result = await reasoning_core(state)
+        assert mock_openrouter_bound.ainvoke.called
+        assert not mock_google_bound.ainvoke.called
+        assert "OpenRouter fresh call" in result["messages"][0].content
+
+
+@pytest.mark.asyncio
+async def test_reasoning_core_extracts_reasoning_content_thought():
+    """Verify reasoning_content from Qwen is properly extracted into thoughts."""
+    state = _create_sample_state()
+
+    response_with_reasoning = AIMessage(
+        content="Final answer for user",
+        additional_kwargs={
+            "reasoning_content": "Step 1: Check user role. Step 2: Greet user."
+        },
+    )
+    mock_openrouter_bound = AsyncMock()
+    mock_openrouter_bound.ainvoke.return_value = response_with_reasoning
+    mock_openrouter_llm = MagicMock()
+    mock_openrouter_llm.bind_tools.return_value = mock_openrouter_bound
+
+    with patch("app.agents.graph.get_openrouter_llm", return_value=mock_openrouter_llm):
+        result = await reasoning_core(state)
+        msg_content = result["messages"][0].content
+        assert "<thought>" in msg_content
+        assert "Step 1: Check user role" in msg_content
+        assert "Final answer for user" in msg_content
+
+
+@pytest.mark.asyncio
+async def test_reasoning_core_extracts_canonical_reasoning_thought():
+    """Verify canonical OpenRouter reasoning field is extracted into thoughts."""
+    state = _create_sample_state()
+
+    response_with_reasoning = AIMessage(
+        content="Musical guidance for user",
+        additional_kwargs={
+            "reasoning": "Step 1: Check interval history. Step 2: Suggest minor 2nd."
+        },
+    )
+    mock_openrouter_bound = AsyncMock()
+    mock_openrouter_bound.ainvoke.return_value = response_with_reasoning
+    mock_openrouter_llm = MagicMock()
+    mock_openrouter_llm.bind_tools.return_value = mock_openrouter_bound
+
+    with patch(
+        "app.agents.graph.get_openrouter_llm", return_value=mock_openrouter_llm
+    ):
+        result = await reasoning_core(state)
+        msg_content = result["messages"][0].content
+        assert "<thought>" in msg_content
+        assert "Step 1: Check interval history" in msg_content
+        assert "Musical guidance for user" in msg_content
+

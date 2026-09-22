@@ -41,8 +41,8 @@ This section details the advanced engineering, security layers, and memory archi
 
 ### Core Intelligence & Routing
 StormTracker is driven by a hybrid intelligence model:
-- **Primary Engine**: Core conversational, reasoning, and tool execution tasks are powered by `Gemma 4 26B-A4B-it` / `Gemma 4 31b-it`.
-- **Dynamic Routing & Reasoning**: OpenRouter integrations route background summarization, embedding generation, and fact extraction to dedicated reasoning models.
+- **Primary Engine**: Core conversational, reasoning, and tool execution tasks are powered by `Qwen` via OpenRouter (with automated exponential backoff and failover to `Gemma` via Google AI Studio).
+- **Dynamic Routing & Reasoning**: OpenRouter integrations route primary ReAct reasoning, background summarization, embedding generation, and fact extraction to dedicated reasoning models.
 
 ### Advanced Prompt Engineering & Agent Control
 StormTracker utilizes a production-grade system prompt designed to control the ReAct Agent's autonomous behavior:
@@ -65,7 +65,7 @@ To support continuous context without amnesia while keeping API costs low, Storm
                                │ (Eviction via Redis LTRIM)
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 2. EPISODIC NARRATIVE SUMMARY (Gemma 31B Background Loop)   │
+│ 2. EPISODIC NARRATIVE SUMMARY (Qwen Background Loop)        │
 │    - Rolling summary (< 500 words) of narrative & momentum │
 │    - Mathematically calibrated max_tokens = 875             │
 └──────────────────────────────┬──────────────────────────────┘

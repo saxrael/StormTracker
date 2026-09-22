@@ -1,49 +1,9 @@
-"""Unit tests for the Google AI circuit breaker and rate limit detection."""
-
-from unittest.mock import AsyncMock, patch
-
-import pytest
+"""Unit tests for LLM resilience error classification and rate limit detection."""
 
 from app.services.circuit_breaker import (
-    is_google_ai_in_cooldown,
     is_rate_limit_error,
-    reset_google_ai_circuit_breaker,
-    trip_google_ai_circuit_breaker,
+    is_transient_error,
 )
-
-
-@pytest.mark.asyncio
-async def test_circuit_breaker_cooldown_lifecycle():
-    """Verify circuit breaker lifecycle: idle -> tripped -> cooldown active -> reset."""
-    mock_redis = AsyncMock()
-    # Initially key does not exist
-    mock_redis.get.return_value = None
-
-    with patch("app.services.circuit_breaker.redis_client", mock_redis):
-        # Reset memory state first
-        await reset_google_ai_circuit_breaker()
-
-        # 1. Initially NOT in cooldown
-        assert await is_google_ai_in_cooldown() is False
-
-        # 2. Trip circuit breaker with 600s cooldown
-        await trip_google_ai_circuit_breaker(
-            reason="429 RESOURCE_EXHAUSTED", cooldown_seconds=600
-        )
-        mock_redis.set.assert_called_once_with(
-            "circuit_breaker:google_ai:cooldown",
-            "tripped: 429 RESOURCE_EXHAUSTED",
-            ex=600,
-        )
-
-        # 3. In cooldown while key exists
-        mock_redis.get.return_value = b"tripped: 429 RESOURCE_EXHAUSTED"
-        assert await is_google_ai_in_cooldown() is True
-
-        # 4. Reset circuit breaker
-        await reset_google_ai_circuit_breaker()
-        mock_redis.get.return_value = None
-        assert await is_google_ai_in_cooldown() is False
 
 
 def test_is_rate_limit_error():
@@ -58,3 +18,25 @@ def test_is_rate_limit_error():
     assert is_rate_limit_error(ValueError("Invalid parameter")) is False
     assert is_rate_limit_error(Exception("500 Internal Server Error")) is False
     assert is_rate_limit_error(KeyError("missing_key")) is False
+
+
+def test_is_transient_error():
+    """Verify transient error classification for exponential backoff."""
+    # Rate limits and quotas
+    assert is_transient_error(Exception("429 Too Many Requests")) is True
+    assert is_transient_error(Exception("ResourceExhausted")) is True
+
+    # Server errors
+    assert is_transient_error(Exception("500 Internal Server Error")) is True
+    assert is_transient_error(Exception("502 Bad Gateway")) is True
+    assert is_transient_error(Exception("503 Service Unavailable")) is True
+    assert is_transient_error(Exception("504 Gateway Timeout")) is True
+
+    # Network / connection issues
+    assert is_transient_error(Exception("Request timeout after 30s")) is True
+    assert is_transient_error(Exception("Connection reset by peer")) is True
+    assert is_transient_error(Exception("Server overloaded")) is True
+
+    # Non-transient errors
+    assert is_transient_error(ValueError("Bad input")) is False
+    assert is_transient_error(KeyError("missing_field")) is False
